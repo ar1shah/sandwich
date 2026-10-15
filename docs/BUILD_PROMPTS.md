@@ -9,7 +9,7 @@ Copy-paste prompts to build the whole app, one step at a time, with checks after
 3. **Let it run the checks.** Every prompt ends by asking Claude to run checks and report. Read the report. "Should work" is not a check.
 4. **Do your own checks.** The "Your checks" list is stuff only a human can judge (does the video look right, does the UI feel right).
 5. **Commit.** When everything passes, Claude ticks `docs/CHECKLIST.md` and suggests a commit. Commit, push, open a PR if you're splitting work.
-6. **Shortcut:** the custom command `/next-step` finds the next unchecked step and runs it in plan mode, and `/verify-step` re-runs a step's checks. They read this file, so keep it updated.
+6. **Shortcut:** the project skill `/next-step` (in `.claude/skills/`) finds the next unchecked step and runs it in plan mode, and `/verify-step` re-runs a step's checks. They read this file, so keep it updated.
 
 If a step goes sideways, see "When things go wrong" at the bottom.
 

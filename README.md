@@ -16,7 +16,7 @@ This repo starts as a **starter kit** for building the app with Claude Code. No 
 | `docs/CHECKLIST.md` | Progress tracker (Claude ticks steps only when checks pass) |
 | `docs/DECISIONS.md` | Log of big decisions and why |
 | `docs/CLAUDE_APP_PROMPTS.md` | Prompts for the regular Claude app: caption bank from screenshots, product setup, QA, hook analysis |
-| `.claude/commands/` | Custom slash commands: `/next-step`, `/verify-step 1.2`, `/review` |
+| `.claude/skills/` | Project skills you run as slash commands: `/next-step`, `/verify-step 1.2`, `/review` |
 
 ## One-time setup (both of you)
 
