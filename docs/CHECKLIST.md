@@ -5,14 +5,14 @@ Source of truth for progress. Claude ticks a box only after that step's checks a
 Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a note)
 
 ## Setup (do once, by hand)
-- [ ] Node LTS installed (`node -v`)
-- [ ] Git + GitHub repo created, both of you added as collaborators
-- [ ] Claude Code installed and logged in on both Macs
-- [ ] This starter kit copied into the repo root and committed
+- [x] Node LTS installed (`node -v`)
+- [x] Git + GitHub repo created, both of you added as collaborators
+- [x] Claude Code installed and logged in on both Macs
+- [x] This starter kit copied into the repo root and committed
 
 ## Phase 0: Foundation
 - [x] 0.1 Scaffold (Remotion Electron template, TS strict, Tailwind, Zustand, zod, lint, Vitest, sidebar shell)
-  - [ ] You: `npm run dev` window opens, lint + tests pass
+  - [x] You: `npm run dev` window opens, lint + tests pass
 - [ ] 0.2 FFmpeg binaries + probe + capabilities report
   - [ ] You: real iPhone clip probes as HDR with recordedAt
 - [ ] 0.3 Fixture generator + sample.recipe.json
