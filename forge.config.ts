@@ -9,6 +9,8 @@ import {
   bundleRemotionProject,
   getPrebuiltRemotionBundlePath,
 } from "./src/main/render/remotion-bundle";
+import { getFfTarget, PACKAGED_FF_DIR } from "./src/main/media/binaries";
+import { ensureFfBinaries } from "./scripts/ffmpeg/fetch";
 
 const DARWIN_COMPOSITOR_PACKAGES = [
   "@remotion/compositor-darwin-x64",
@@ -162,12 +164,33 @@ export async function stageBrowser({
   );
 }
 
+// Copies hash-verified ffmpeg + ffprobe for the target into <app>/ffmpeg-bin/<target>/,
+// which is unpacked from asar so the binaries can be spawned.
+async function stageFfBinaries({
+  arch,
+  buildPath,
+  platform,
+}: {
+  arch: string;
+  buildPath: string;
+  platform: string;
+}): Promise<void> {
+  const target = getFfTarget(platform, arch);
+  if (!target) {
+    throw new Error(`No bundled FFmpeg for ${platform}-${arch}.`);
+  }
+  const source = await ensureFfBinaries({ projectRoot: process.cwd(), target });
+  const destination = path.join(buildPath, PACKAGED_FF_DIR, target);
+  await mkdir(destination, { recursive: true });
+  await cp(source, destination, { recursive: true });
+}
+
 const config = {
   packagerConfig: {
     asar: {
       unpackDir: shouldPackageBrowser
-        ? "{node_modules/@remotion/compositor-*,remotion-browser}"
-        : "node_modules/@remotion/compositor-*",
+        ? `{node_modules/@remotion/compositor-*,remotion-browser,${PACKAGED_FF_DIR}}`
+        : `{node_modules/@remotion/compositor-*,${PACKAGED_FF_DIR}}`,
     },
     osxUniversal: {
       // These compositor binaries are already architecture-specific and should not be
@@ -207,6 +230,12 @@ const config = {
       // Electron Forge's Vite packaging does not materialize this optional runtime binary
       // into the packaged app automatically, so stage the required compositor packages explicitly.
       await stageCompositorPackages({
+        arch,
+        buildPath,
+        platform,
+      });
+
+      await stageFfBinaries({
         arch,
         buildPath,
         platform,

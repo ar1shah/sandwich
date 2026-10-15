@@ -17,6 +17,7 @@ Each phase ends with an exit test you actually perform. Do not start the next ph
 Steps: 0.1 scaffold · 0.2 ffmpeg binaries + probe · 0.3 fixtures · 0.4 packaged render spike (decision gate)
 
 **Exit test:** a packaged `.app` (not dev mode), launched from Finder, renders a hardcoded 3-clip test video to disk.
+The same packaged `.app` must also render on the second MacBook after being AirDropped there (so it arrives quarantined by Gatekeeper).
 
 ## Phase 1: Render engine
 Steps: 1.1 shared logic + recipe schema · 1.2 import normalization · 1.3 media server · 1.4 composition · 1.5 render CLI + verify

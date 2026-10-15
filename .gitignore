@@ -13,3 +13,6 @@ playwright-report/
 fixtures/*
 !fixtures/.gitkeep
 !fixtures/generate.*
+
+# Downloaded FFmpeg binaries (npm run ffmpeg:fetch)
+vendor/

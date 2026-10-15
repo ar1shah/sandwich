@@ -67,3 +67,38 @@ The only config changes are the entry paths in `forge.config.ts` and the script 
 - `sandbox: true` is enabled on the main window; the preload is a single Vite-bundled file, so this works.
 **Why:** Keep the template's proven packaging path, minimal surface in the scaffold.
 **Revisit if:** Step 0.4 needs the template's render IPC back, or Forge makers are added.
+
+## #8 2026-10-15: FFmpeg + FFprobe from ffmpeg-static's pinned GitHub release
+**Context:** Need ffmpeg and ffprobe for macOS arm64 + x64 now and Windows x64 later, with zscale/tonemap for HDR, libx264, and the filters normalization needs. Options compared:
+- `ffmpeg-static` npm: ffmpeg only (no ffprobe), downloads only for the host at install time.
+- `ffprobe-static` npm: ffprobe 4.0.2 from 2022, Intel-only on macOS. Rejected.
+- FFmpeg inside Remotion's compositor package (n7.1): already shipped and unpacked, has zscale/tonemap/libx264/libx265, but built with `--disable-filters` and a whitelist that lacks `format`, `fps`, `transpose` (needed for autorotate), `tile`, `crop`, `pad`, `overlay`, `testsrc`. Also an internal Remotion artifact with a macOS 15 minimum. Rejected.
+- Pinned download script against the `ffmpeg-static` GitHub release `b6.1.1`, which publishes both ffmpeg and ffprobe for every target. Chosen.
+**Decision:** `scripts/ffmpeg-fetch.ts` downloads `ffmpeg-<target>.gz` and `ffprobe-<target>.gz` from release `b6.1.1`, gunzips, verifies SHA-256 of the decompressed binary against hashes pinned in `scripts/ffmpeg/fetch.ts`, and writes them to `vendor/ffmpeg/<target>/` (gitignored). If the file already exists and its hash matches, the download is skipped; a corrupted or wrong file is re-downloaded. Runs on `postinstall` for the host (warns and skips on unsupported hosts) and from the Forge `packageAfterCopy` hook for the target arch, which stages it into `ffmpeg-bin/<target>/` and adds that folder to `asar.unpackDir`.
+Builds verified with `npm run ffmpeg:check`:
+- darwin-arm64: FFmpeg 6.0 (osxexperts), all required filters/encoders present, h264_videotoolbox present, no libplacebo.
+- darwin-x64: FFmpeg 6.1.1 (evermeet), same capability set (checked under Rosetta).
+- win32-x64: 6.1.1 essentials (gyan.dev). Not run yet; `ffmpeg:check` on Windows in Step 5.1.
+Hashes were recorded from the first download (trust on first use); the release publishes no checksums.
+Licensing: these are GPL builds. Fine for internal use, revisit before distributing commercially (see CLAUDE.md).
+Size: about 91 MB per arm64 install (ffmpeg + ffprobe), about 158 MB for x64.
+**Why:** One source for both tools, every target we need, any target fetchable on any machine (so an arm64 Mac can package x64), and integrity checked.
+**Revisit if:** We need a newer FFmpeg (bump the tag and hashes together), app size matters, or a target build loses a required capability.
+
+## #9 2026-10-15: Required FFmpeg capabilities are enforced, not just logged
+**Context:** A missing filter would only surface mid-import as a cryptic ffmpeg error.
+**Decision:** `npm run ffmpeg:check` exits nonzero unless these exist: filters zscale, tonemap, scale, fps, transpose, crop, pad, tile, format; encoders libx264, aac. h264_videotoolbox, libplacebo and colorspace are reported as optional. The app also logs the same report at startup (non-blocking, errors go to stderr).
+**Why:** Fail fast when changing the FFmpeg pin or adding a platform.
+**Revisit if:** Normalization or filmstrips start using other filters (add them to `REQUIRED_FILTERS`).
+
+## #10 2026-10-15: Probe parsing conventions
+**Context:** ffprobe output differs across versions and devices.
+**Decision:**
+- `rotation` is the clockwise angle needed to display upright, normalized to 0/90/180/270. ffprobe's display matrix `rotation` is counter-clockwise (iPhone portrait reports `-90`), so it is negated; the legacy `rotate` tag is already clockwise. The display matrix wins when both exist.
+- `isVfr` is true when `avg_frame_rate` and `r_frame_rate` differ by more than 1%. An exact comparison would flag nearly every phone clip.
+- `recordedAt` prefers `com.apple.quicktime.creationdate` (capture time with local offset) over `creation_time` (can be export time), checking format tags before stream tags. 1904/1970 epoch placeholders count as missing. Stored as ISO 8601 UTC.
+- ffprobe JSON is validated with a loose zod schema before parsing.
+- Real iPhone sample (`tests/fixtures/probe/iphone_hlg_portrait.json`, 2026-10-15): portrait stored natively as 1080x1920 with no display matrix, HEVC Main 10 HLG with a Dolby Vision configuration record, 60 fps, and a second audio stream (Apple spatial audio, `apac`) that FFmpeg 6.0 cannot decode. Location, make, model, software and encoder tags were removed and dates replaced before committing. The -90 display matrix path is covered by unit tests, not a real clip, because this phone did not write one.
+**Why:** Predictable values for normalization (Step 1.2) and date-based pairing (Step 4.2).
+**Note for Step 1.2:** map the AAC audio stream explicitly (not "first audio stream" blindly) so the undecodable spatial audio track is never picked.
+**Revisit if:** Real Android or screen-recording clips break these assumptions, or an older iPhone clip with a rotation matrix turns up (add it as a fixture).

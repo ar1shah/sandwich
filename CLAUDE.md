@@ -78,6 +78,9 @@ npm run test:watch     # vitest in watch mode
 npm run lint           # eslint + tsc --noEmit
 npm run format         # prettier --write
 npm run studio         # Remotion Studio for remotion/
+npm run ffmpeg:fetch   # download pinned, hash-checked ffmpeg + ffprobe into vendor/ffmpeg/ (also runs on postinstall)
+npm run ffmpeg:check   # print FFmpeg capability report, exit 1 if a required filter/encoder is missing
+npm run probe -- <file> # print the ProbeResult for a video file
 npm run fixtures       # generate test media into fixtures/ (placeholder until step 0.3)
 npm run render:sample  # render fixtures/sample.recipe.json to out/ (placeholder until step 0.4)
 npm run verify:render  # ffprobe asserts on a rendered file (placeholder until step 1.5)

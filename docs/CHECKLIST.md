@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 ## Phase 0: Foundation
 - [x] 0.1 Scaffold (Remotion Electron template, TS strict, Tailwind, Zustand, zod, lint, Vitest, sidebar shell)
   - [x] You: `npm run dev` window opens, lint + tests pass
-- [ ] 0.2 FFmpeg binaries + probe + capabilities report
+- [x] 0.2 FFmpeg binaries + probe + capabilities report
   - [ ] You: real iPhone clip probes as HDR with recordedAt
 - [ ] 0.3 Fixture generator + sample.recipe.json
   - [ ] You: real clips added to `fixtures/real/`

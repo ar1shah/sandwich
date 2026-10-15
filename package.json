@@ -17,7 +17,11 @@
     "package": "electron-forge package",
     "fixtures": "node -e \"console.error('fixtures: not implemented until step 0.3'); process.exit(1)\"",
     "render:sample": "node -e \"console.error('render:sample: not implemented until step 0.4'); process.exit(1)\"",
-    "verify:render": "node -e \"console.error('verify:render: not implemented until step 1.5'); process.exit(1)\""
+    "verify:render": "node -e \"console.error('verify:render: not implemented until step 1.5'); process.exit(1)\"",
+    "postinstall": "tsx scripts/ffmpeg-fetch.ts --postinstall",
+    "ffmpeg:fetch": "tsx scripts/ffmpeg-fetch.ts",
+    "ffmpeg:check": "tsx scripts/ffmpeg-check.ts",
+    "probe": "tsx scripts/probe.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.535",
@@ -55,6 +59,7 @@
     "eslint": "9.39.5",
     "prettier": "3.8.1",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "vite": "6.4.3",
     "vitest": "^5.0.5"

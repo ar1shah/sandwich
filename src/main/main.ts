@@ -1,10 +1,13 @@
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
+import { formatCapabilityReport } from "../shared/capabilitiesParse";
 import { APP_VERSION_CHANNEL } from "../shared/ipc";
 import {
   getIntegrationRenderOutputPath,
   runIntegrationRenderTest,
 } from "./integration-render-test-mode";
+import { resolveFfPaths } from "./media/binaries";
+import { getFfCapabilities } from "./media/capabilities";
 
 let mainWindow: BrowserWindow | null = null;
 const integrationRenderOutputPath = getIntegrationRenderOutputPath();
@@ -46,6 +49,24 @@ function createWindow(): void {
   }
 }
 
+async function logFfCapabilities(): Promise<void> {
+  try {
+    const { ffmpeg } = resolveFfPaths({
+      isPackaged: app.isPackaged,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      platform: process.platform,
+      arch: process.arch,
+    });
+    const report = await getFfCapabilities(ffmpeg);
+    const log = report.ok ? console.log : console.error;
+    log(`[ffmpeg] ${formatCapabilityReport(report)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[ffmpeg] Capability check failed: ${message}`);
+  }
+}
+
 ipcMain.handle(APP_VERSION_CHANNEL, (event: IpcMainInvokeEvent) => {
   assertTrustedSender(event);
   return app.getVersion();
@@ -58,6 +79,7 @@ app.on("ready", () => {
   }
 
   createWindow();
+  void logFfCapabilities();
 });
 
 app.on("window-all-closed", () => {
