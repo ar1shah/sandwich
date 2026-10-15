@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --app: #0f1115;
+  --panel: #161a20;
+  --edge: #252b34;
+  --brand: #3b82f6;
+  --app-text: #f3f4f6;
+  --app-muted: #9ca3af;
+  --app-dim: #6b7280;
+}
+
+@theme inline {
+  --color-app: var(--app);
+  --color-panel: var(--panel);
+  --color-edge: var(--edge);
+  --color-brand: var(--brand);
+  --color-app-text: var(--app-text);
+  --color-app-muted: var(--app-muted);
+  --color-app-dim: var(--app-dim);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #react-root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--app);
+    color: var(--app-text);
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+}

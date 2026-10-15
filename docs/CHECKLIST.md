@@ -11,7 +11,7 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [ ] This starter kit copied into the repo root and committed
 
 ## Phase 0: Foundation
-- [ ] 0.1 Scaffold (Remotion Electron template, TS strict, Tailwind, Zustand, zod, lint, Vitest, sidebar shell)
+- [x] 0.1 Scaffold (Remotion Electron template, TS strict, Tailwind, Zustand, zod, lint, Vitest, sidebar shell)
   - [ ] You: `npm run dev` window opens, lint + tests pass
 - [ ] 0.2 FFmpeg binaries + probe + capabilities report
   - [ ] You: real iPhone clip probes as HDR with recordedAt

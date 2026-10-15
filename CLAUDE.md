@@ -72,13 +72,16 @@ If the Remotion Electron template uses a different layout, keep its layout for t
 Keep this list accurate as scripts get added:
 
 ```
-npm run dev            # start app in dev mode
-npm test               # vitest
+npm run dev            # start app in dev mode (electron-forge start; needs a real terminal)
+npm test               # vitest run
+npm run test:watch     # vitest in watch mode
 npm run lint           # eslint + tsc --noEmit
-npm run fixtures       # generate test media into fixtures/
-npm run render:sample  # render fixtures/sample.recipe.json to out/
-npm run verify:render  # ffprobe asserts on a rendered file
-npm run make           # package the app
+npm run format         # prettier --write
+npm run studio         # Remotion Studio for remotion/
+npm run fixtures       # generate test media into fixtures/ (placeholder until step 0.3)
+npm run render:sample  # render fixtures/sample.recipe.json to out/ (placeholder until step 0.4)
+npm run verify:render  # ffprobe asserts on a rendered file (placeholder until step 1.5)
+npm run make           # package the app (currently electron-forge package)
 ```
 
 ## How to work in this repo

@@ -1,4 +1,15 @@
 node_modules/
+dist/
 out/
-fixtures/
+.vite/
+.env
+*.log
+*.tsbuildinfo
 .DS_Store
+test-results/
+playwright-report/
+
+# Generated test media; only the generator and .gitkeep are tracked
+fixtures/*
+!fixtures/.gitkeep
+!fixtures/generate.*
