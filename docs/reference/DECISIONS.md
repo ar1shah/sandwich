@@ -102,3 +102,9 @@ Size: about 91 MB per arm64 install (ffmpeg + ffprobe), about 158 MB for x64.
 **Why:** Predictable values for normalization (Step 1.2) and date-based pairing (Step 4.2).
 **Note for Step 1.2:** map the AAC audio stream explicitly (not "first audio stream" blindly) so the undecodable spatial audio track is never picked.
 **Revisit if:** Real Android or screen-recording clips break these assumptions, or an older iPhone clip with a rotation matrix turns up (add it as a fixture).
+
+## #11 2026-10-15: Split docs into planning and reference
+**Context:** The humans only need the roadmap, checklist and build prompts day to day. The other docs are for Claude while building.
+**Decision:** `docs/` keeps `ROADMAP.md`, `CHECKLIST.md`, `BUILD_PROMPTS.md` (plus future human-facing docs like `USER_GUIDE.md` and `FEEDBACK.md`). `SPEC.md`, `ARCHITECTURE.md`, `DECISIONS.md` moved to `docs/reference/`, and new design docs (e.g. `SHARING.md`) go there too. `CLAUDE_APP_PROMPTS.md` was deleted as unneeded; its caption-extraction prompt is still in git history (commit 0bd6ab4) if it is ever wanted.
+**Why:** Less to scan; the files that track progress are the only ones at the top level.
+**Revisit if:** Someone keeps missing a reference doc they needed.

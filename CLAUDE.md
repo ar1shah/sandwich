@@ -8,13 +8,19 @@ Desktop app that turns raw UGC clips into finished 9:16 TikTok Shop videos using
 
 Each slot gets: trim, optional zoom, optional caption, mute toggle. Music is NOT handled here (it gets added later in the TikTok app).
 
-Full details live in `docs/`. Read the relevant doc before starting a task:
-- `docs/SPEC.md` : features, user flows, data model, recipe schema, naming rules
-- `docs/ARCHITECTURE.md` : processes, IPC, render pipeline, media server, folder layout
+Full details live in `docs/`. Read the relevant doc before starting a task.
+
+Planning docs (what the humans look at, kept at the top of `docs/`):
 - `docs/ROADMAP.md` : phases and exit criteria
 - `docs/CHECKLIST.md` : current progress (source of truth for what is done)
 - `docs/BUILD_PROMPTS.md` : the step-by-step build plan
-- `docs/DECISIONS.md` : decision log (append when you make a non-obvious choice)
+
+Reference docs (`docs/reference/`, read by Claude while building):
+- `docs/reference/SPEC.md` : features, user flows, data model, recipe schema, naming rules
+- `docs/reference/ARCHITECTURE.md` : processes, IPC, render pipeline, media server, folder layout
+- `docs/reference/DECISIONS.md` : decision log (append when you make a non-obvious choice)
+
+New design or reference docs go in `docs/reference/`. Only planning docs and human-facing docs (like `USER_GUIDE.md`, `FEEDBACK.md`) go at the top of `docs/`.
 
 ## Stack
 
@@ -31,7 +37,7 @@ All Remotion packages must be pinned to the exact same version with no `^`.
 
 ## Golden rules
 
-1. **The recipe is the product.** Every video is a `Recipe` JSON (see `docs/SPEC.md`). The UI only edits recipes. The renderer only reads recipes. UI state and render logic never diverge.
+1. **The recipe is the product.** Every video is a `Recipe` JSON (see `docs/reference/SPEC.md`). The UI only edits recipes. The renderer only reads recipes. UI state and render logic never diverge.
 2. **Preview must equal export.** The same `<SandwichVideo>` composition is used by the Player and by `renderMedia`. No separate preview-only drawing code for captions, zoom, or crop.
 3. **Cross-platform from day one.** The app must build on Windows later without rewrites:
    - Use `path.join` / `path.resolve`, never string-concatenated paths or hardcoded `/`
@@ -62,10 +68,10 @@ remotion/        # Remotion entry + <SandwichVideo> composition
 scripts/         # dev scripts: fixtures, render CLI, verify
 tests/           # vitest + playwright
 fixtures/        # generated test media (gitignored except the generator)
-docs/
+docs/            # ROADMAP, CHECKLIST, BUILD_PROMPTS; reference/ holds SPEC, ARCHITECTURE, DECISIONS
 ```
 
-If the Remotion Electron template uses a different layout, keep its layout for the shell and map these folders onto it. Record the mapping in `docs/DECISIONS.md`.
+If the Remotion Electron template uses a different layout, keep its layout for the shell and map these folders onto it. Record the mapping in `docs/reference/DECISIONS.md`.
 
 ## Commands
 
@@ -94,7 +100,7 @@ npm run make           # package the app (currently electron-forge package)
 - After coding a step: run `npm run lint` and `npm test`, run that step's checks, then report results honestly, including anything that failed or was skipped.
 - When a step's checks pass: tick it in `docs/CHECKLIST.md` and suggest a commit message. Never tick boxes for checks that did not actually run.
 - Pure logic goes in `src/shared/` with unit tests. If a function has no side effects, it gets a test.
-- If you deviate from the spec or choose between tradeoffs, add an entry to `docs/DECISIONS.md`.
+- If you deviate from the spec or choose between tradeoffs, add an entry to `docs/reference/DECISIONS.md`.
 - If a doc is wrong or outdated (library APIs change), say so and propose a doc fix instead of silently working around it.
 - Prefer the official docs for Remotion, Electron Forge, and FFmpeg over memory. These APIs move fast.
 - Keep components small and feature-foldered.

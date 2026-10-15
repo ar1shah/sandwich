@@ -8,14 +8,14 @@ This repo starts as a **starter kit** for building the app with Claude Code. No 
 
 | File | What it's for |
 |---|---|
-| `CLAUDE.md` | Project brief Claude Code reads automatically every session: stack, golden rules, output spec, how to work |
-| `docs/SPEC.md` | What the app does: features, flows, recipe format, naming, caption tokens |
-| `docs/ARCHITECTURE.md` | How it's built: processes, DB schema, media server, normalization, render pipeline, testing |
 | `docs/ROADMAP.md` | Phases, exit tests, how to split work between two people, risks |
-| `docs/BUILD_PROMPTS.md` | Copy-paste prompts for every build step, each with checks |
 | `docs/CHECKLIST.md` | Progress tracker (Claude ticks steps only when checks pass) |
-| `docs/DECISIONS.md` | Log of big decisions and why |
-| `docs/CLAUDE_APP_PROMPTS.md` | Prompts for the regular Claude app: caption bank from screenshots, product setup, QA, hook analysis |
+| `docs/BUILD_PROMPTS.md` | Copy-paste prompts for every build step, each with checks |
+| `CLAUDE.md` | Project brief Claude Code reads automatically every session: stack, golden rules, output spec, how to work |
+| `docs/reference/` | Background docs Claude reads while building. You rarely need to open these. |
+| `docs/reference/SPEC.md` | What the app does: features, flows, recipe format, naming, caption tokens |
+| `docs/reference/ARCHITECTURE.md` | How it's built: processes, DB schema, media server, normalization, render pipeline, testing |
+| `docs/reference/DECISIONS.md` | Log of big decisions and why |
 | `.claude/skills/` | Project skills you run as slash commands: `/next-step`, `/verify-step 1.2`, `/review` |
 
 ## One-time setup (both of you)

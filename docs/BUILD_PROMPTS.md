@@ -21,13 +21,13 @@ If a step goes sideways, see "When things go wrong" at the bottom.
 **Branch:** `step/0.1-scaffold`
 
 ```
-We're starting the Sandwich app described in CLAUDE.md. Read CLAUDE.md, docs/SPEC.md, and docs/ARCHITECTURE.md first.
+We're starting the Sandwich app described in CLAUDE.md. Read CLAUDE.md, docs/reference/SPEC.md, and docs/reference/ARCHITECTURE.md first.
 
 Step 0.1: scaffold the project.
 
 1. Look up the current official Remotion Electron template and its docs page (https://www.remotion.dev/docs/electron). Use that template as the base, since it already solves packaged rendering with Electron Forge + Vite. Tell me what the template gives us before changing anything.
 2. Add: TypeScript strict mode, React, Tailwind, Zustand, zod, ESLint + Prettier, Vitest, Playwright (for Electron later, just install for now).
-3. Create the folder structure from CLAUDE.md (src/main, src/preload, src/renderer, src/shared, remotion, scripts, tests, fixtures). If the template's layout differs, keep the template's layout for the Electron shell and map our folders onto it. Log the mapping in docs/DECISIONS.md.
+3. Create the folder structure from CLAUDE.md (src/main, src/preload, src/renderer, src/shared, remotion, scripts, tests, fixtures). If the template's layout differs, keep the template's layout for the Electron shell and map our folders onto it. Log the mapping in docs/reference/DECISIONS.md.
 4. Make sure all Remotion packages are pinned to the exact same version with no ^.
 5. Add npm scripts: dev, test, lint (eslint + tsc --noEmit), make. Leave placeholders for fixtures, render:sample, verify:render.
 6. Replace the template's demo UI with a plain shell: left sidebar (Products, Captions, New Video, Batch, History, Settings), main area showing the page name. Dark UI, clean, nothing fancy yet.
@@ -50,9 +50,9 @@ Checks to run and report: npm install, npm run lint, npm test, and npm run dev (
 **Branch:** `step/0.2-ffmpeg`
 
 ```
-Step 0.2: bundle FFmpeg and FFprobe and build the probe utility. See docs/ARCHITECTURE.md sections 2 and 6.
+Step 0.2: bundle FFmpeg and FFprobe and build the probe utility. See docs/reference/ARCHITECTURE.md sections 2 and 6.
 
-1. Pick a way to ship ffmpeg and ffprobe binaries for macOS (arm64 + x64) and later Windows x64. Options: ffmpeg-static/ffprobe-static npm packages, or downloading builds in a script. Compare them briefly (size, license, available filters like zscale and libx265, Apple Silicon support) and recommend one. Log the choice in docs/DECISIONS.md.
+1. Pick a way to ship ffmpeg and ffprobe binaries for macOS (arm64 + x64) and later Windows x64. Options: ffmpeg-static/ffprobe-static npm packages, or downloading builds in a script. Compare them briefly (size, license, available filters like zscale and libx265, Apple Silicon support) and recommend one. Log the choice in docs/reference/DECISIONS.md.
 2. src/main/media/binaries.ts: resolve paths for dev vs packaged (packaged binaries must come from app.asar.unpacked), and for mac vs win (.exe). Configure the packager so the binaries are unpacked.
 3. src/main/media/probe.ts: run ffprobe with an args array, parse JSON, and return a typed ProbeResult: duration, width, height, rotation (from display matrix side data or rotate tag), displayWidth/displayHeight (after rotation), fps, isVfr, hasAudio, colorTransfer, isHdr (HLG arib-std-b67 or PQ smpte2084), pixFmt, recordedAt (creation_time or com.apple.quicktime.creationdate), codec.
 4. src/main/media/capabilities.ts: on startup run `ffmpeg -hide_banner -filters` and `-encoders` once and report whether zscale, libplacebo, tonemap, libx264, libx265 exist. Log this at startup.
@@ -72,12 +72,12 @@ Checks: lint, test, and run `npm run probe` on any video file you can generate q
 **Branch:** `step/0.3-fixtures`
 
 ```
-Step 0.3: build the fixture generator from docs/ARCHITECTURE.md section 10.
+Step 0.3: build the fixture generator from docs/reference/ARCHITECTURE.md section 10.
 
 1. scripts/generate-fixtures.ts using the bundled ffmpeg (args arrays, no shell strings). Generate every fixture listed in ARCHITECTURE.md. Each clip should be visually distinct and show a burned-in label + running timecode (drawtext) so trims and order are easy to verify by eye. Give each a different tone frequency for audio.
 2. The rotated fixture must be landscape pixels with rotation metadata, so it tests our rotation handling.
 3. The HDR fixture: only if libx265 is available; tag it as HLG bt2020 10-bit. Skip with a clear message otherwise.
-4. Also write fixtures/sample.recipe.json matching the Recipe shape in docs/SPEC.md section 3 (paths relative to fixtures/ for now), with captions on all three clips and zoom on the before clip.
+4. Also write fixtures/sample.recipe.json matching the Recipe shape in docs/reference/SPEC.md section 3 (paths relative to fixtures/ for now), with captions on all three clips and zoom on the before clip.
 5. Create fixtures/real/README.md telling the user to drop real clips there (an iPhone HDR video, a screen recording, a horizontal video) and make sure fixtures/real/* except the README is gitignored.
 6. npm run fixtures runs it. It should be idempotent and print a summary table (file, duration, size, probe highlights) using our probe util.
 
@@ -103,9 +103,9 @@ Step 0.4: prove that Remotion can render a video from inside a PACKAGED Electron
 5. Measure and report: render time for the 6 second video in dev and in the packaged app, CPU arch, packaged app size.
 6. Try Remotion's hardware-accelerated encoding option on macOS if our pinned version has it, and report the speed difference.
 
-Checks: npm run make, then launch the packaged .app from Finder (not from the terminal), click Render spike, confirm the mp4 exists and plays. Tell me exactly what you had to change to make packaging work and log it in docs/DECISIONS.md.
+Checks: npm run make, then launch the packaged .app from Finder (not from the terminal), click Render spike, confirm the mp4 exists and plays. Tell me exactly what you had to change to make packaging work and log it in docs/reference/DECISIONS.md.
 
-If packaged rendering cannot be made to work after a solid attempt, STOP and write up what failed, then propose switching to the FFmpeg-only renderer described in docs/ARCHITECTURE.md section 7. Do not switch without my go-ahead.
+If packaged rendering cannot be made to work after a solid attempt, STOP and write up what failed, then propose switching to the FFmpeg-only renderer described in docs/reference/ARCHITECTURE.md section 7. Do not switch without my go-ahead.
 ```
 
 **Your checks**
@@ -121,7 +121,7 @@ If packaged rendering cannot be made to work after a solid attempt, STOP and wri
 **Branch:** `step/1.1-shared`
 
 ```
-Step 1.1: build the pure logic in src/shared/ with thorough unit tests. No UI. Read docs/SPEC.md sections 2, 3, 5.2, 6, 8.
+Step 1.1: build the pure logic in src/shared/ with thorough unit tests. No UI. Read docs/reference/SPEC.md sections 2, 3, 5.2, 6, 8.
 
 Create, each with tests:
 1. recipe.ts: zod schema + inferred types for Recipe and ClipSpec exactly as in SPEC.md section 3, including the refinements (trimStart + duration <= sourceDuration, duration > 0, clips ordered before/after/broll). Export helpers: totalDuration(recipe), isRenderable(recipe), createEmptyRecipe(product, defaults).
@@ -147,7 +147,7 @@ Checks: npm test with coverage for src/shared (aim for 90%+), npm run lint. Show
 **Branch:** `step/1.2-normalize`
 
 ```
-Step 1.2: build import normalization exactly as described in docs/ARCHITECTURE.md section 6.
+Step 1.2: build import normalization exactly as described in docs/reference/ARCHITECTURE.md section 6.
 
 1. src/main/media/normalize.ts: normalize(inputPath, outputPath, { onProgress, signal }) → { probe, outputProbe, wasHdr, toneMapPath }. Build the ffmpeg args from the probe result. Pure arg-building goes in src/shared/ffmpegArgs.ts with unit tests (HDR vs SDR, rotated, no audio, VFR, 60fps, horizontal).
 2. Tone mapping: use the zscale chain if available, otherwise the best fallback the capabilities report allows. Record which path ran.
@@ -171,7 +171,7 @@ Checks: run the integration script and show a pass/fail table. Then normalize ev
 **Branch:** `step/1.3-media-server`
 
 ```
-Step 1.3: build the media server from docs/ARCHITECTURE.md section 5, replacing the spike's temporary server.
+Step 1.3: build the media server from docs/reference/ARCHITECTURE.md section 5, replacing the spike's temporary server.
 
 1. src/main/mediaServer.ts using node:http only (no express). 127.0.0.1, random free port, random session token, root = library root (for now fixtures/ in dev).
 2. Range requests (206) with correct Content-Range, Accept-Ranges, Content-Length; 416 for bad ranges. HEAD support. Content-Type by extension.
@@ -192,7 +192,7 @@ Checks: npm test, plus curl examples hitting the running dev server (full reques
 **Branch:** `step/1.4-composition`
 
 ```
-Step 1.4: build the real <SandwichVideo> composition in remotion/, per docs/ARCHITECTURE.md section 2 (Remotion) and docs/SPEC.md sections 3, 7, 8. Delete the Spike composition when done.
+Step 1.4: build the real <SandwichVideo> composition in remotion/, per docs/reference/ARCHITECTURE.md section 2 (Remotion) and docs/reference/SPEC.md sections 3, 7, 8. Delete the Spike composition when done.
 
 1. Root.tsx: Composition "Sandwich", 1080x1920, 30fps, inputProps = { recipe, mediaBaseUrl }. Use calculateMetadata to set durationInFrames from totalDuration(recipe) (round to frames carefully so 3 clips sum exactly).
 2. SandwichVideo.tsx: three <Sequence>s back to back. Frame math lives in a pure helper (src/shared/timeline.ts) with tests: given the recipe, return each clip's from/durationInFrames and its source start frame.
@@ -219,7 +219,7 @@ Checks: npm test (timeline math), lint, and render 4 still frames (start of each
 **Branch:** `step/1.5-render-cli`
 
 ```
-Step 1.5: wire real rendering, a CLI for it, and the verify script. See docs/ARCHITECTURE.md section 7 and 10.
+Step 1.5: wire real rendering, a CLI for it, and the verify script. See docs/reference/ARCHITECTURE.md section 7 and 10.
 
 1. src/main/render/renderRecipe.ts: renderRecipe(recipe, { outputPath, mediaBaseUrl, onProgress, signal }) using selectComposition + renderMedia with codec h264, 30fps, pixel format yuv420p, AAC audio, and the packaged-binary options from Step 0.4. Make sure the output has +faststart (check whether Remotion does this by default; if not, add a fast remux step).
 2. scripts/render.ts → npm run render -- <recipe.json> <out.mp4>; npm run render:sample renders fixtures/sample.recipe.json to out/sample.mp4. The CLI starts the media server itself.
@@ -242,7 +242,7 @@ Checks: npm run render:sample, then npm run verify:render -- out/sample.mp4 12 (
 **Branch:** `step/2.1-library-db`
 
 ```
-Step 2.1: library folder and SQLite. See docs/ARCHITECTURE.md sections 3 and 4.
+Step 2.1: library folder and SQLite. See docs/reference/ARCHITECTURE.md sections 3 and 4.
 
 1. First-launch flow: if no library is configured, show a welcome screen to choose or create a library folder (default ~/Movies/SandwichLibrary). Store the chosen path in app settings (userData). Settings page shows the path and lets you switch libraries.
 2. Warn (do not block) if the chosen path is inside Dropbox, Google Drive, OneDrive, or iCloud Drive, explaining that the database can corrupt in synced folders.
@@ -265,7 +265,7 @@ Checks: npm test, lint, then npm run dev, pick a library folder, confirm library
 **Branch:** `step/2.2-jobs`
 
 ```
-Step 2.2: the job queue from docs/ARCHITECTURE.md section 2 (jobs).
+Step 2.2: the job queue from docs/reference/ARCHITECTURE.md section 2 (jobs).
 
 1. src/main/jobs/: typed job definitions (normalize, thumbnail, filmstrip, render), per-type concurrency (normalize/thumbnail/filmstrip: 2, render: 1), cancel via AbortController, progress events to the renderer (job:progress, job:done, job:failed) with a jobId and a human label.
 2. A composite "importClip" flow: copy file into the library → normalize → thumbnail → filmstrip → insert media row. Partial files cleaned up on failure or cancel. Original file never touched.
@@ -285,7 +285,7 @@ Checks: npm test; then in dev, add a temporary dev-only button that imports all 
 **Branch:** `step/2.3-products`
 
 ```
-Step 2.3: products feature. See docs/SPEC.md section 2 (Product) and 5.1 step 1. Use the frontend-design approach: clean, fast, dark, visual.
+Step 2.3: products feature. See docs/reference/SPEC.md section 2 (Product) and 5.1 step 1. Use the frontend-design approach: clean, fast, dark, visual.
 
 1. Products page: responsive grid of product cards (square image, full name, short name in muted text, b-roll count). Search box filters by full or short name instantly. Recently used products pinned first (last_used_at).
 2. Add / edit product modal: image (drag-drop or pick a file; copied into products/<id>/image.jpg, resized to max 800px), full name (required), short name (optional, with a hint: "what you'd say in a caption, e.g. 'the 501s'"), slug (auto from full name, editable, must be unique). Live preview of how "10/10 {product}" resolves.
@@ -306,7 +306,7 @@ Checks: lint, test (add tests for slug uniqueness handling), and a Playwright El
 **Branch:** `step/2.4-broll`
 
 ```
-Step 2.4: b-roll per product. See docs/SPEC.md section 2 (B-roll).
+Step 2.4: b-roll per product. See docs/reference/SPEC.md section 2 (B-roll).
 
 1. Product detail page (click a product card): header with image + names + edit button, and a "B-roll" section.
 2. Drag-drop or pick multiple files to import as b-roll for this product using the importClip flow (kind = broll, product_id set). Show placeholder tiles with progress while importing.
@@ -327,7 +327,7 @@ Checks: lint, test, Playwright smoke test: import 2 fixtures as b-roll, see thum
 **Branch:** `step/2.5-captions`
 
 ```
-Step 2.5: caption bank. See docs/SPEC.md section 2 (Caption, tokens, bulk paste).
+Step 2.5: caption bank. See docs/reference/SPEC.md section 2 (Caption, tokens, bulk paste).
 
 1. Captions page: filters for product (All, Generic, or a specific product via ProductPicker) and slot (before/after/broll/any), plus text search. Table/list with text, slot badge, product (or "Generic"), use count, edit and delete actions.
 2. Add/edit form: text (multi-line), slot, product or generic. Live token preview using a selected product, warnings for unknown tokens.
@@ -339,7 +339,7 @@ Checks: lint, test, Playwright smoke: bulk add 5 captions (one invalid line show
 ```
 
 **Your checks**
-- [ ] Bulk paste 15 real captions from winning videos (use the Claude app prompt in `docs/CLAUDE_APP_PROMPTS.md` to extract them from screenshots)
+- [ ] Bulk paste 15 real captions from winning videos
 - [ ] **Phase 2 exit test passes**
 
 ---
@@ -350,7 +350,7 @@ Checks: lint, test, Playwright smoke: bulk add 5 captions (one invalid line show
 **Branch:** `step/3.1-editor-shell`
 
 ```
-Step 3.1: the editor shell for manual mode. See docs/SPEC.md section 5.1 steps 1 to 3.
+Step 3.1: the editor shell for manual mode. See docs/reference/SPEC.md section 5.1 steps 1 to 3.
 
 1. "New Video" page: step 1 is the ProductPicker (full page grid). Choosing a product creates a draft Recipe (createEmptyRecipe with default durations from settings) in a Zustand editor store and updates last_used_at.
 2. Editor layout: left column with three slot cards (Before, After, B-roll) showing thumbnail, duration, caption snippet, and status; center reserved for the preview (next step); right column for the selected clip's panel (next steps).
@@ -393,7 +393,7 @@ Checks: lint, test, then run the app with a full draft and confirm the preview m
 **Branch:** `step/3.3-trim`
 
 ```
-Step 3.3: the trim UI. See docs/SPEC.md section 5.1 step 4 (Trim).
+Step 3.3: the trim UI. See docs/reference/SPEC.md section 5.1 step 4 (Trim).
 
 1. Right column clip panel, Trim section: the clip's filmstrip across the full width, with a highlighted window over it representing [trimStart, trimStart + duration].
 2. Drag the window body to move it (duration stays fixed). Drag either edge to change duration. Snap to 0.1s. Clamp to the clip bounds and a minimum of 0.5s.
@@ -415,7 +415,7 @@ Checks: lint, test (trimMath edge cases: at bounds, min length, snapping, clip s
 **Branch:** `step/3.4-clip-controls`
 
 ```
-Step 3.4: zoom, mute, and captions in the clip panel. See docs/SPEC.md section 5.1 step 4 and section 7.
+Step 3.4: zoom, mute, and captions in the clip panel. See docs/reference/SPEC.md section 5.1 step 4 and section 7.
 
 1. Zoom toggle (off = none, on = slow-push). Mute toggle (defaults: before/after unmuted, b-roll muted).
 2. Caption section: "Pick caption" opens CaptionPicker filtered by this slot and product. Choosing one resolves tokens and fills an editable multi-line text box (remember sourceCaptionId, increment use_count on export, not on pick). "Clear caption" option.
@@ -437,7 +437,7 @@ Checks: lint, test, Playwright: pick a caption with {product}, confirm resolved 
 **Branch:** `step/3.5-export`
 
 ```
-Step 3.5: export. See docs/SPEC.md section 6 and docs/ARCHITECTURE.md section 7.
+Step 3.5: export. See docs/reference/SPEC.md section 6 and docs/reference/ARCHITECTURE.md section 7.
 
 1. Export button (disabled until isRenderable). Validate the recipe with zod in main.
 2. Build the name with naming.ts (existing names read from the target folder), render via the job queue's render job, with progress shown in the editor and the jobs tray. Cancel supported (partial file deleted).
@@ -496,7 +496,7 @@ Checks: lint, test (migration test, recipe load with missing media), Playwright:
 **Branch:** `step/4.2-batch-pairing`
 
 ```
-Step 4.2: batch intake and the pairing board. Read docs/SPEC.md section 5.2 carefully, including the note about Finder drop order.
+Step 4.2: batch intake and the pairing board. Read docs/reference/SPEC.md section 5.2 carefully, including the note about Finder drop order.
 
 1. Batch page: ProductPicker, then an intake screen with three modes as tabs: In order, All at once, Two drop zones. Each mode uses the pure pairing functions from src/shared/pairing.ts.
 2. Imports start immediately in the background (importClip) while you arrange pairs; recordedAt from probe is used for "All at once".
@@ -516,7 +516,7 @@ Checks: lint, test (reducer), Playwright: All at once with 6 fixtures → pairs 
 **Branch:** `step/4.3-batch-review`
 
 ```
-Step 4.3: auto-fill and the review grid. See docs/SPEC.md section 5.2 steps 4 and 5.
+Step 4.3: auto-fill and the review grid. See docs/reference/SPEC.md section 5.2 steps 4 and 5.
 
 1. "Auto-fill" turns pairs into recipes: b-roll via shuffleBag over the product's b-roll, captions per slot via a seeded random pick avoiding repeats within the batch where possible (fallback to repeats with a warning), default trims and settings. Store the seed; "Re-roll" picks a new seed for b-roll, captions, or both.
 2. Review grid: one row per video showing the three thumbnails, the three captions, total length with color, and warnings (clip shorter than default, no caption, duplicate caption). Bulk actions: toggle zoom for all befores, set caption style for all.
@@ -606,7 +606,7 @@ Step 5.4: creators and usage rights. Migration for creators (id, name, handle, c
 
 ### Step 5.5: Shared library
 ```
-Step 5.5: shared library for two users. Design doc first (save to docs/SHARING.md, wait for my approval): Supabase for products, captions, videos, stats, creators (Postgres + auth + row level security for a two-person team), media files in a shared drive folder that each machine maps to a local path, relative paths everywhere, conflict handling (updated_at last-write-wins plus a conflict log), offline behavior, and migration of each person's existing local library. The SQLite file must never live in the synced folder. Do not write code until I approve the design.
+Step 5.5: shared library for two users. Design doc first (save to docs/reference/SHARING.md, wait for my approval): Supabase for products, captions, videos, stats, creators (Postgres + auth + row level security for a two-person team), media files in a shared drive folder that each machine maps to a local path, relative paths everywhere, conflict handling (updated_at last-write-wins plus a conflict log), offline behavior, and migration of each person's existing local library. The SQLite file must never live in the synced folder. Do not write code until I approve the design.
 ```
 
 ### Step 5.6: Auto-captions (Whisper)
