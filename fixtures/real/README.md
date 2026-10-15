@@ -2,7 +2,7 @@
 
 Drop real footage here. This folder is gitignored except this README, so nothing you add is ever committed.
 
-Use these exact filenames so tests and scripts can pick the clips up opportunistically and skip cleanly when they are missing:
+Use these base names so tests and scripts can pick the clips up opportunistically and skip cleanly when they are missing. Any video extension and any letter case is fine (`.mov`, `.MOV`, `.mp4`, `.MP4`); lookups match on the base name:
 
 | File | What it should be | Why |
 |---|---|---|
