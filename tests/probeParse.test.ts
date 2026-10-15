@@ -221,6 +221,71 @@ describe("parseProbeJson", () => {
     expect(result.recordedAt).toBe("2024-05-12T21:33:21.000Z");
   });
 
+  it("prefers the video stream duration over the container duration", () => {
+    const result = parseProbeJson({
+      streams: [
+        {
+          codec_type: "video",
+          codec_name: "h264",
+          width: 1080,
+          height: 1920,
+          avg_frame_rate: "30/1",
+          r_frame_rate: "30/1",
+          duration: "4.000000",
+        },
+        { codec_type: "audio", codec_name: "aac" },
+      ],
+      format: { duration: "4.021333" },
+    });
+    expect(result.duration).toBe(4);
+  });
+
+  it("falls back to the container duration when the stream has none", () => {
+    const result = parseProbeJson({
+      streams: [
+        {
+          codec_type: "video",
+          codec_name: "h264",
+          width: 1080,
+          height: 1920,
+          avg_frame_rate: "30/1",
+          r_frame_rate: "30/1",
+        },
+      ],
+      format: { duration: "3.5" },
+    });
+    expect(result.duration).toBe(3.5);
+  });
+
+  it("reads audio channels and sample rate from the first audio stream", () => {
+    const video = {
+      codec_type: "video",
+      codec_name: "h264",
+      width: 1080,
+      height: 1920,
+      avg_frame_rate: "30/1",
+      r_frame_rate: "30/1",
+      duration: "2.0",
+    };
+    const withAudio = parseProbeJson({
+      streams: [
+        video,
+        {
+          codec_type: "audio",
+          codec_name: "aac",
+          channels: 1,
+          sample_rate: "44100",
+        },
+      ],
+    });
+    expect(withAudio.audioChannels).toBe(1);
+    expect(withAudio.audioSampleRate).toBe(44100);
+
+    const without = parseProbeJson({ streams: [video] });
+    expect(without.audioChannels).toBeNull();
+    expect(without.audioSampleRate).toBeNull();
+  });
+
   it("throws when there is no video stream", () => {
     expect(() =>
       parseProbeJson({

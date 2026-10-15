@@ -98,6 +98,7 @@ Size: about 91 MB per arm64 install (ffmpeg + ffprobe), about 158 MB for x64.
 - `isVfr` is true when `avg_frame_rate` and `r_frame_rate` differ by more than 1%. An exact comparison would flag nearly every phone clip.
 - `recordedAt` prefers `com.apple.quicktime.creationdate` (capture time with local offset) over `creation_time` (can be export time), checking format tags before stream tags. 1904/1970 epoch placeholders count as missing. Stored as ISO 8601 UTC.
 - ffprobe JSON is validated with a loose zod schema before parsing.
+- `duration` is the video stream's duration (container duration only as a fallback): the container can be slightly longer because of AAC priming. `audioChannels` / `audioSampleRate` come from the first audio stream (added in step 0.3 for the fixture assertions).
 - Real iPhone sample (`tests/fixtures/probe/iphone_hlg_portrait.json`, 2026-10-15): portrait stored natively as 1080x1920 with no display matrix, HEVC Main 10 HLG with a Dolby Vision configuration record, 60 fps, and a second audio stream (Apple spatial audio, `apac`) that FFmpeg 6.0 cannot decode. Location, make, model, software and encoder tags were removed and dates replaced before committing. The -90 display matrix path is covered by unit tests, not a real clip, because this phone did not write one.
 **Why:** Predictable values for normalization (Step 1.2) and date-based pairing (Step 4.2).
 **Note for Step 1.2:** map the AAC audio stream explicitly (not "first audio stream" blindly) so the undecodable spatial audio track is never picked.
@@ -108,3 +109,20 @@ Size: about 91 MB per arm64 install (ffmpeg + ffprobe), about 158 MB for x64.
 **Decision:** `docs/` keeps `ROADMAP.md`, `CHECKLIST.md`, `BUILD_PROMPTS.md` (plus future human-facing docs like `USER_GUIDE.md` and `FEEDBACK.md`). `SPEC.md`, `ARCHITECTURE.md`, `DECISIONS.md` moved to `docs/reference/`, and new design docs (e.g. `SHARING.md`) go there too. `CLAUDE_APP_PROMPTS.md` was deleted as unneeded; its caption-extraction prompt is still in git history (commit 0bd6ab4) if it is ever wanted.
 **Why:** Less to scan; the files that track progress are the only ones at the top level.
 **Revisit if:** Someone keeps missing a reference doc they needed.
+
+## #12 2026-10-15: Bundled caption font: TikTok Sans 36pt Bold
+**Context:** SPEC section 7 wants one open-license font used identically in preview and render. The fixture generator needs a font file for drawtext too, and a relative path avoids drive letters and colons in filter strings.
+**Decision:** Bundle `assets/fonts/TikTokSans36pt-Bold.ttf` (TikTok Sans v4.000, SIL OFL 1.1, `assets/fonts/OFL.txt` alongside). Static cut, not the variable font, because drawtext/freetype cannot select a weight from a variable font. The 36pt optical size is the display cut, right for 64 px+ caption text. Fixtures pass it to drawtext as a relative path with ffmpeg spawned at the project root.
+**Why:** One font file for fixtures now and the composition (1.4) later; no per-platform font lookup and no fontconfig dependency.
+**Revisit if:** Captions need a script TikTok Sans lacks (Arabic, Hebrew, CJK, Thai, ...), or the Remotion composition needs other weights (add them here, keep the license file).
+
+## #13 2026-10-15: Fixture generator conventions
+**Context:** Step 0.3 needs deterministic test media that is quick to regenerate and easy to verify by eye and ear.
+**Decision:**
+- Every fixture has a burned-in label, running time and frame number, a "TOP" marker, a pure red 24 px bar along the top edge of the upright frame, and a sync pulse: a 0.1 s beep once per second with a full-width white flash (below the red bar) in the same window. One tone frequency per fixture.
+- Caching: `fixtures/.manifest.json` (gitignored) stores a sha256 of each fixture's ffmpeg argument arrays, the ffmpeg version line, the font file hash and `GENERATOR_VERSION`. Only relative paths go into the hash. Files are written as `<name>.tmp.<ext>` and renamed on success, and a fixture is cached only if the hash matches and the file is non-empty. `npm run fixtures -- --force` rebuilds everything.
+- Rotation fixture: upright content is `transpose=1`'d to 1920x1080 landscape pixels and remuxed with `-display_rotation 90`, matching `tests/fixtures/probe/rotated_ccw90.json` (ffprobe rotation 90 counter-clockwise, our `rotation: 270`, display 1080x1920). It is verified by decoding with autorotate and checking that the top 20 px strip is red, so a wrong sign fails. The more common older-iPhone sign (-90, our `rotation: 90`) is not generated yet.
+- HDR fixtures (HLG and PQ, bt2020, 10-bit HEVC) are required: the generator fails if libx265 is missing. Pixel values are an SDR test pattern, so they test tagging and tone-map plumbing, not tone-map quality (that stays a real-clip human check).
+- `sample.recipe.json` only uses normalized-looking clips (1080x1920, 30 fps CFR, SDR H.264). The 60 fps, VFR, 4K, rotated, mono, no-audio and HDR files are normalization and edge-case inputs. A separate edge-case recipe (no-audio clip etc.) arrives in step 1.5. The recipe uses a local type until `src/shared/recipe.ts` exists in step 1.1, where it should be validated against the zod schema.
+**Why:** Flash and beep make trims and A/V sync obvious on playback; hashing avoids pointless 10 s regenerations while still noticing any change.
+**Revisit if:** Fixtures become slow to generate, or Phase 1 needs more edge cases (add them to `FIXTURES`, bump nothing else).

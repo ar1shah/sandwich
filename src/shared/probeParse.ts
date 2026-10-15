@@ -13,6 +13,8 @@ const sideDataSchema = z.looseObject({
 const streamSchema = z.looseObject({
   codec_type: z.string().optional(),
   codec_name: z.string().optional(),
+  channels: z.number().optional(),
+  sample_rate: z.string().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   pix_fmt: z.string().optional(),
@@ -40,7 +42,7 @@ type FfprobeStream = FfprobeOutput["streams"][number];
 export type Rotation = 0 | 90 | 180 | 270;
 
 export type ProbeResult = {
-  duration: number; // seconds
+  duration: number; // seconds, video stream duration (container duration if the stream has none)
   width: number; // coded pixels
   height: number;
   rotation: Rotation; // clockwise degrees needed to display upright
@@ -49,6 +51,8 @@ export type ProbeResult = {
   fps: number;
   isVfr: boolean;
   hasAudio: boolean;
+  audioChannels: number | null; // first audio stream
+  audioSampleRate: number | null; // Hz, first audio stream
   colorTransfer: string | null;
   isHdr: boolean;
   pixFmt: string | null;
@@ -157,7 +161,8 @@ export function parseProbeJson(raw: unknown): ProbeResult {
     throw new Error("No usable video stream found.");
   }
 
-  const duration = Number(data.format?.duration ?? video.duration);
+  // The video stream's own duration: the container's can be slightly longer (AAC priming).
+  const duration = Number(video.duration ?? data.format?.duration);
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error("Could not read the clip duration.");
   }
@@ -172,6 +177,8 @@ export function parseProbeJson(raw: unknown): ProbeResult {
   const rotation = getRotation(video);
   const swap = rotation === 90 || rotation === 270;
   const colorTransfer = video.color_transfer ?? null;
+  const audio = data.streams.find((stream) => stream.codec_type === "audio");
+  const sampleRate = Number(audio?.sample_rate);
 
   return {
     duration,
@@ -182,7 +189,10 @@ export function parseProbeJson(raw: unknown): ProbeResult {
     displayHeight: swap ? video.width : video.height,
     fps,
     isVfr: isVariableFrameRate(rFrameRate, avgFrameRate),
-    hasAudio: data.streams.some((stream) => stream.codec_type === "audio"),
+    hasAudio: audio !== undefined,
+    audioChannels: audio?.channels ?? null,
+    audioSampleRate:
+      Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : null,
     colorTransfer,
     isHdr: isHdrTransfer(colorTransfer),
     pixFmt: video.pix_fmt ?? null,

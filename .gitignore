@@ -9,10 +9,13 @@ out/
 test-results/
 playwright-report/
 
-# Generated test media; only the generator and .gitkeep are tracked
+# Generated test media (npm run fixtures). The generator lives in scripts/.
+# Order matters: git cannot re-include files under an excluded directory.
 fixtures/*
 !fixtures/.gitkeep
-!fixtures/generate.*
+!fixtures/real/
+fixtures/real/*
+!fixtures/real/README.md
 
 # Downloaded FFmpeg binaries (npm run ffmpeg:fetch)
 vendor/

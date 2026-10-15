@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "make": "electron-forge package",
     "package": "electron-forge package",
-    "fixtures": "node -e \"console.error('fixtures: not implemented until step 0.3'); process.exit(1)\"",
+    "fixtures": "tsx scripts/generate-fixtures.ts",
     "render:sample": "node -e \"console.error('render:sample: not implemented until step 0.4'); process.exit(1)\"",
     "verify:render": "node -e \"console.error('verify:render: not implemented until step 1.5'); process.exit(1)\"",
     "postinstall": "tsx scripts/ffmpeg-fetch.ts --postinstall",

@@ -15,7 +15,7 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
   - [x] You: `npm run dev` window opens, lint + tests pass
 - [x] 0.2 FFmpeg binaries + probe + capabilities report
   - [ ] You: real iPhone clip probes as HDR with recordedAt
-- [ ] 0.3 Fixture generator + sample.recipe.json
+- [x] 0.3 Fixture generator + sample.recipe.json
   - [ ] You: real clips added to `fixtures/real/`
 - [ ] 0.4 Packaged render spike
   - [ ] You: packaged .app renders from Finder launch
