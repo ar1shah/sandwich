@@ -49,11 +49,13 @@ Pure TypeScript only. No `fs`, no `window`. Everything here is unit tested.
 
 ### Remotion (`remotion/`)
 - `index.ts` registers the root
-- `Root.tsx` defines `<Composition id="Sandwich" ...>` with `calculateMetadata` deriving `durationInFrames` from the recipe
-- `SandwichVideo.tsx` : three `<Sequence>`s, each a `<ClipLayer>`
-- `ClipLayer.tsx` : cover-fit video (`<OffthreadVideo>` for render, the Player-compatible video component for preview, following Remotion's current docs), trim via start offset, zoom via `interpolate` on `transform: scale()` with `transformOrigin` from `focus`, mute
-- `Caption.tsx` : caption styles inside the safe zone
-- `fonts.ts` : loads the bundled font file
+- `Root.tsx` defines `<Composition id="Sandwich" ...>` with `calculateMetadata`, which validates the recipe with zod, returns the parsed recipe in `props`, and derives `durationInFrames` from `buildTimeline` (`src/shared/timeline.ts`). `defaultProps` is an empty recipe with a fixed id and date (deterministic bundle)
+- `SandwichVideo.tsx` : three `<Sequence>`s, each a `<ClipLayer>`, plus the debug overlay
+- `ClipLayer.tsx` : cover-fit `<OffthreadVideo>` (falls back to an HTML5 video in the Player, so one component tree serves preview and render; DECISIONS #26), trim via `trimBefore`, zoom via `zoomScale` (`src/shared/zoom.ts`) on `transform: scale()` with `transformOrigin` from `focus`, mute; the caption sits outside the zoom wrapper
+- `Caption.tsx` : outline and per-line box styles inside the safe zone; layout from `computeCaptionLayout` (`src/shared/captionLayout.ts`), computed only once the font is ready
+- `DebugOverlay.tsx` : `showSafeZone` rectangle and `showTimecode` label (off by default)
+- `fonts.ts` : one module-level `loadFont` promise for the bundled font (no duplicate FontFaces on Player remounts) and `useFontReady()`, which holds a `delayRender` handle and returns whether the font is loaded
+- `measureText.ts` : canvas text measurement using exactly the same font shorthand as the drawn text, cached per `(text, size)`
 
 ## 3. Library folder layout
 

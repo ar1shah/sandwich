@@ -557,7 +557,10 @@ export function buildSampleRecipe(sourceDurations: {
   broll: number;
 }): SampleRecipe {
   const clip = (
-    c: Omit<SampleClip, "focus" | "mediaPath"> & { file: string },
+    c: Omit<SampleClip, "focus" | "mediaPath"> & {
+      file: string;
+      focus?: SampleClip["focus"];
+    },
   ): SampleClip => {
     if (c.trimStart + c.duration > c.sourceDuration - TRIM_MARGIN) {
       throw new Error(
@@ -571,7 +574,7 @@ export function buildSampleRecipe(sourceDurations: {
       trimStart: c.trimStart,
       duration: c.duration,
       zoom: c.zoom,
-      focus: { x: 0.5, y: 0.5 },
+      focus: c.focus ?? { x: 0.5, y: 0.5 },
       muted: c.muted,
       caption: c.caption,
     };
@@ -603,7 +606,9 @@ export function buildSampleRecipe(sourceDurations: {
         sourceDuration: sourceDurations.after,
         trimStart: 0.5,
         duration: 4,
-        zoom: "none",
+        // Off-center punch-in so the composition's focus and punch-in paths are exercised.
+        zoom: "punch-in",
+        focus: { x: 0.3, y: 0.35 },
         muted: false,
         caption: {
           text: "Two weeks later\nlook at the difference",

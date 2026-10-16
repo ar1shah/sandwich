@@ -176,10 +176,11 @@ Example: `levis-501_cant-fix-my-smile_2026-10-15_03.mp4`
 ## 7. Caption look
 
 - Font: one open-license font bundled with the app and loaded inside the composition (check Google Fonts for TikTok Sans; otherwise a clean geometric sans). The same font file is used in preview and render.
-- `outline` style: white text, black stroke, subtle shadow
-- `box` style: black text on a white rounded box (TikTok native look)
-- Font size ~64 px at 1080 width, max 2 to 3 lines, auto wrap at ~80% of safe width, shrink to fit if needed
-- Positions: `top` (upper third inside safe zone) and `middle`
+- `outline` style: white text, black stroke, subtle shadow. The stroke is drawn on a layer under the fill, so only its outer half shows and a thick stroke never eats thin letters.
+- `box` style: black text on a rounded white box **per line**, each hugging its line's width and centered (TikTok native look), not one rectangle around the block
+- Font size ~64 px at 1080 width, max 3 lines, auto wrap at ~80% of safe width, shrink to fit (down to a ~36 px floor) if needed
+- **Overflow rule:** at the floor size, if the text still needs more than 3 lines, the size stays at the floor and ALL lines are drawn (user text is never truncated). Lines are positioned to stay inside the safe rect height. The layout reports `overflow: true` so the editor can warn.
+- Positions: `top` (centered in the upper third of the safe zone) and `middle` (centered in the safe zone)
 
 ## 8. Safe zone
 

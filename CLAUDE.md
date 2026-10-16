@@ -85,7 +85,8 @@ npm run test:watch     # vitest in watch mode
 npm run test:coverage  # vitest with v8 coverage for src/shared
 npm run lint           # eslint + tsc --noEmit
 npm run format         # prettier --write
-npm run studio         # Remotion Studio for remotion/
+npm run studio         # Remotion Studio on the Sandwich composition with fixtures/sample.recipe.json (starts the media server; needs npm run fixtures first)
+npm run frames         # render still frames of the sample recipe to out/frames/ with the safe-zone and timecode overlays on
 npm run ffmpeg:fetch   # download pinned, hash-checked ffmpeg + ffprobe into vendor/ffmpeg/ (also runs on postinstall)
 npm run ffmpeg:check   # print FFmpeg capability report, exit 1 if a required filter/encoder is missing
 npm run probe -- <file> # print the ProbeResult for a video file

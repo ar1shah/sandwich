@@ -28,9 +28,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 1.3 Media server (range requests, token, traversal-safe)
   - [x] You: media URL plays and scrubs in Chrome; wrong token gives 403
   - [x] You: packaged .app (npm run make, open from Finder) still renders the spike
-- [ ] 1.4 SandwichVideo composition (trim, zoom, captions, safe zone)
-  - [ ] Cleanup: remove Spike composition, spike IPC, and Settings spike section (spike media server already removed in 1.3, spike.ts now uses the real server)
-  - [ ] You: Studio scrub looks right, captions in safe zone
+- [x] 1.4 SandwichVideo composition (trim, zoom, captions, safe zone)
+  - [x] Cleanup: remove Spike composition, spike IPC, and Settings spike section (spike media server already removed in 1.3, spike.ts now uses the real server)
+  - [x] You: Studio scrub looks right, captions in safe zone
 - [ ] 1.5 Render CLI + verify script
   - [ ] You: real-clip render watched on phone
 - [ ] **Phase 1 exit test**
