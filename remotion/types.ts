@@ -1,3 +1,1 @@
-export type HelloWorldProps = {
-  titleText: string;
-};
+export type { SpikeProps, SpikeClipProps } from "../src/shared/spikeProps";

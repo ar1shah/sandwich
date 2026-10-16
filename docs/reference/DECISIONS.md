@@ -126,3 +126,39 @@ Size: about 91 MB per arm64 install (ffmpeg + ffprobe), about 158 MB for x64.
 - `sample.recipe.json` only uses normalized-looking clips (1080x1920, 30 fps CFR, SDR H.264). The 60 fps, VFR, 4K, rotated, mono, no-audio and HDR files are normalization and edge-case inputs. A separate edge-case recipe (no-audio clip etc.) arrives in step 1.5. The recipe uses a local type until `src/shared/recipe.ts` exists in step 1.1, where it should be validated against the zod schema.
 **Why:** Flash and beep make trims and A/V sync obvious on playback; hashing avoids pointless 10 s regenerations while still noticing any change.
 **Revisit if:** Fixtures become slow to generate, or Phase 1 needs more edge cases (add them to `FIXTURES`, bump nothing else).
+
+## #14 2026-10-15: Step 0.4 spike result: Remotion renders from the packaged app on this Mac
+**Context:** Packaged Remotion rendering was the riskiest assumption (golden rules 2 and 7). Spike: a 12 s, 360 frame `Spike` composition (before 3 s, after 4 s, broll 5 s muted; clips served over a 127.0.0.1 range-capable server; overlay text in a font loaded from the Remotion public dir) rendered by `selectComposition` + `renderMedia` in the main process.
+**Result (Apple M2 Pro, arm64, 12 cores, Remotion 4.0.535, Electron 40.10.2, concurrency 6):**
+| Mode | Where | Encoder (Remotion log) | Render | Total | Output |
+|---|---|---|---|---|---|
+| sw (CRF default) | dev | libx264 | 9.3 s | 10.4 s (+0.8 s bundling) | 2.0 MB |
+| hw (`required`, 8M) | dev | h264_videotoolbox | 9.1 s | 10.3 s | 6.5 MB, no x264 SEI |
+| sw-bitrate (8M) | dev | libx264 | 9.4 s | 10.5 s | 8.1 MB |
+| sw | packaged | libx264 | 9.8 s | 10.3 s | 2.0 MB |
+| hw (`required`) | packaged | h264_videotoolbox | 9.5 s | 9.9 s | 6.5 MB |
+| sw-bitrate | packaged | libx264 | 10.1 s | 10.5 s | 8.1 MB |
+The very first dev run was cold: `selectComposition` took 11.3 s and the total 40.7 s; every later run took 0.3 to 0.5 s to select. A first launch after install may pay a similar warm-up.
+**What had to change for packaging to work:** nothing in the template's plumbing (compositor staging, `binariesDirectory`, `browserExecutable`, prebuilt bundle, `chdir(userData)`). The only changes were additive: (1) package the headless browser by default (#15), (2) pass `publicDir: assets/` to `bundle()` so `staticFile()` resolves fonts from the prebuilt bundle (verified: `remotion-bundle/public/fonts/...` is in the asar and the overlay renders), (3) stage the two spike clips into `app.asar.unpacked/spike-media/` for the packaged media server. The packaged run used the browser from `app.asar.unpacked/remotion-browser/` (seen in Remotion's verbose log) and created nothing under userData.
+**Spec check (all six files):** 1080x1920, r/avg frame rate 30/1, h264 High, yuv420p, AAC 48 kHz stereo, video 12.000 s, audio 12.011 s (within 1 frame), `ftyp > moov > free > mdat` so **faststart is already on by default**, before/after windows audible (max about -4.4 dB) and broll window silent (max -91 dB). No spec deviations to fix in 1.5. Re-render is deterministic: dev and packaged outputs have identical byte sizes.
+**Hardware acceleration:** `hardwareAcceleration: "required"` works on this machine through `h264_videotoolbox` (confirmed by Remotion's verbose log and by the file lacking the "x264 - core" SEI). It is not faster here: frame capture in headless Chrome dominates a 12 s render, so hw vs sw at the same 8M bitrate differs by under 0.7 s. CRF cannot be used with it (bitrate only). Decision: keep software x264 (CRF) as the default export path for quality per byte; revisit hardware only if renders of long videos become encode-bound.
+**Decision:** Keep the Remotion renderer. The FFmpeg-only fallback in ARCHITECTURE section 7 is not needed.
+**Not yet verified:** a Finder launch click-through (human check) and the partner's Mac (#17).
+**Revisit if:** A newer Remotion or Electron pin changes packaging, or the app gets signed/notarized (the browser and compositor binaries will need signing).
+
+## #15 2026-10-15: Package the headless browser by default
+**Context:** The template packages Chrome Headless Shell only when `REMOTION_ELECTRON_PACKAGE_BROWSER=true`; otherwise the first render downloads it at runtime.
+**Decision:** `forge.config.ts` now packages it unless `REMOTION_ELECTRON_PACKAGE_BROWSER=false`. This matches golden rule 7 (the browser lives in `app.asar.unpacked`).
+**Tradeoff:** The .app grows from 392 MB to 965 MB (`remotion-browser` is 570 MB; the `chrome-headless-shell` binary alone is 423 MB). In return there is no first-run download, no network dependency, and renders are offline and reproducible. Not supported for macOS universal builds (`ensureBrowser()` fetches only the current architecture). For quick local builds, `REMOTION_ELECTRON_PACKAGE_BROWSER=false npm run make` skips it.
+**Revisit if:** Distribution size matters (zip/dmg compression, or a runtime download with a progress UI), or we need a universal build.
+
+## #16 2026-10-15: Remotion API choices from the 0.4 spike
+- `OffthreadVideo` trim: use `trimBefore` (frames). In 4.0.535 `startFrom` and `endAt` are deprecated aliases, and `trimAfter` is deprecated in favour of `durationInFrames`; clip length is bounded by the surrounding `<Sequence>`.
+- Fonts: `@remotion/fonts` (pinned 4.0.535) `loadFont({ family, url: staticFile(...) })` held with `useDelayRender`. `staticFile` resolves against `publicDir`, which we set to `assets/` for `bundle()` and `Config.setPublicDir("assets")` (Studio). One font file serves ffmpeg drawtext fixtures and the composition.
+- Hardware encoding option is `hardwareAcceleration` (`disable | if-possible | required`); spike results use `required` so a silent fallback cannot be mistaken for hardware (#14).
+- Encoder choice is read from Remotion's verbose log (`logLevel: "verbose"`, console tap) because `renderMedia` does not return it; the file is cross-checked via the x264 SEI string.
+- Main-process runs for scripted measurement: `electron . --integration-render-test <abs .mp4> --spike-mode sw|hw|sw-bitrate|hw-if-possible` (dev, after a `forge start` build) or `open -n -W --stdout f --stderr f -a Sandwich.app --args ...` (packaged). `electron-forge start` exits immediately without a TTY, so dev measurement runs the built `.vite/build/main.js` directly.
+
+## #17 2026-10-15: Partner's Mac (info, not blocking)
+We need the partner's chip (Intel vs Apple Silicon) and macOS version. Builds are arm64 only today, so an Intel Mac cannot run them (an x64 build needs its own compositor package and browser, packaged separately). The compositor's own ffmpeg artifact needs macOS 15 or later (#8). The unsigned app also triggers Gatekeeper on another machine (right-click Open, or `xattr -cr`). If the spike zip is sent to them, record chip, macOS version and result here.
+

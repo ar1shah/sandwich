@@ -89,6 +89,7 @@ npm run ffmpeg:fetch   # download pinned, hash-checked ffmpeg + ffprobe into ven
 npm run ffmpeg:check   # print FFmpeg capability report, exit 1 if a required filter/encoder is missing
 npm run probe -- <file> # print the ProbeResult for a video file
 npm run fixtures       # generate test media + fixtures/sample.recipe.json (cached; add -- --force to rebuild)
+npm run verify:spike -- <mp4...>  # step 0.4: spec + faststart + audio-window checks on spike renders (temporary, 1.5 supersedes)
 npm run render:sample  # render fixtures/sample.recipe.json to out/ (placeholder until step 0.4)
 npm run verify:render  # ffprobe asserts on a rendered file (placeholder until step 1.5)
 npm run make           # package the app (currently electron-forge package)

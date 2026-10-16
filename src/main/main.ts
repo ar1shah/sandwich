@@ -1,13 +1,19 @@
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
 import { formatCapabilityReport } from "../shared/capabilitiesParse";
-import { APP_VERSION_CHANNEL } from "../shared/ipc";
+import {
+  APP_VERSION_CHANNEL,
+  SPIKE_PROGRESS_CHANNEL,
+  SPIKE_RENDER_CHANNEL,
+} from "../shared/ipc";
+import { spikeRenderRequestSchema } from "../shared/spikeProps";
 import {
   getIntegrationRenderOutputPath,
   runIntegrationRenderTest,
 } from "./integration-render-test-mode";
 import { resolveFfPaths } from "./media/binaries";
 import { getFfCapabilities } from "./media/capabilities";
+import { runSpike } from "./spike/spike";
 
 let mainWindow: BrowserWindow | null = null;
 const integrationRenderOutputPath = getIntegrationRenderOutputPath();
@@ -71,6 +77,33 @@ ipcMain.handle(APP_VERSION_CHANNEL, (event: IpcMainInvokeEvent) => {
   assertTrustedSender(event);
   return app.getVersion();
 });
+
+let spikeRunning = false;
+
+// Step 0.4 spike: renders the Spike composition in the main process and streams progress.
+ipcMain.handle(
+  SPIKE_RENDER_CHANNEL,
+  async (event: IpcMainInvokeEvent, payload: unknown) => {
+    assertTrustedSender(event);
+    const { mode } = spikeRenderRequestSchema.parse(payload);
+    if (spikeRunning) {
+      throw new Error("A spike render is already running.");
+    }
+    spikeRunning = true;
+    try {
+      return await runSpike({
+        mode,
+        onProgress: (progress) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(SPIKE_PROGRESS_CHANNEL, progress);
+          }
+        },
+      });
+    } finally {
+      spikeRunning = false;
+    }
+  },
+);
 
 app.on("ready", () => {
   if (integrationRenderOutputPath) {

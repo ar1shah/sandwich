@@ -11,6 +11,11 @@ export const getPrebuiltRemotionBundlePath = (projectRoot: string) => {
   return path.join(projectRoot, PREBUILT_REMOTION_BUNDLE_DIR);
 };
 
+// Static assets (fonts) for staticFile() live in assets/ and are copied into the bundle.
+export const getRemotionPublicDir = (projectRoot: string) => {
+  return path.join(projectRoot, "assets");
+};
+
 export const hasPrebuiltRemotionBundle = (projectRoot: string) => {
   return existsSync(getPrebuiltRemotionBundlePath(projectRoot));
 };
@@ -33,6 +38,7 @@ export const bundleRemotionProject = async ({
   return bundle({
     entryPoint: path.join(projectRoot, "remotion/index.ts"),
     outDir,
+    publicDir: getRemotionPublicDir(projectRoot),
     onProgress(progress: BundleProgress) {
       onUpdate?.({
         type: "progress",

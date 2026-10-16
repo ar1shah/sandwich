@@ -10,6 +10,7 @@ import {
   getPrebuiltRemotionBundlePath,
 } from "./src/main/render/remotion-bundle";
 import { getFfTarget, PACKAGED_FF_DIR } from "./src/main/media/binaries";
+import { SPIKE_SEGMENTS } from "./src/shared/spikeProps";
 import { ensureFfBinaries } from "./scripts/ffmpeg/fetch";
 
 const DARWIN_COMPOSITOR_PACKAGES = [
@@ -17,7 +18,11 @@ const DARWIN_COMPOSITOR_PACKAGES = [
   "@remotion/compositor-darwin-arm64",
 ];
 const PACKAGE_BROWSER_ENV_VAR = "REMOTION_ELECTRON_PACKAGE_BROWSER";
-const shouldPackageBrowser = process.env[PACKAGE_BROWSER_ENV_VAR] === "true";
+// The headless browser ships inside the app by default (CLAUDE.md golden rule 7):
+// no first-run download, no network dependency. Set the variable to "false" to skip it
+// for a quick local build. See DECISIONS for the size tradeoff.
+const shouldPackageBrowser = process.env[PACKAGE_BROWSER_ENV_VAR] !== "false";
+const PACKAGED_SPIKE_MEDIA_DIR = "spike-media";
 
 const DARWIN_UNIVERSAL_ARCH_FILES =
   "Contents/Resources/app.asar.unpacked/node_modules/@remotion/compositor-darwin-*/**";
@@ -185,12 +190,33 @@ async function stageFfBinaries({
   await cp(source, destination, { recursive: true });
 }
 
+// Step 0.4 spike: the two fixture clips the Spike composition plays, staged next to the
+// app so the packaged media server can read them. Removed with the spike.
+async function stageSpikeMedia({
+  buildPath,
+}: {
+  buildPath: string;
+}): Promise<void> {
+  const destination = path.join(buildPath, PACKAGED_SPIKE_MEDIA_DIR);
+  await mkdir(destination, { recursive: true });
+
+  for (const file of new Set(SPIKE_SEGMENTS.map((segment) => segment.file))) {
+    const source = path.join(process.cwd(), "fixtures", file);
+    if (!existsSync(source)) {
+      throw new Error(
+        `Missing ${source}. Run "npm run fixtures" before packaging (step 0.4 spike media).`,
+      );
+    }
+    await cp(source, path.join(destination, file));
+  }
+}
+
 const config = {
   packagerConfig: {
     asar: {
       unpackDir: shouldPackageBrowser
-        ? `{node_modules/@remotion/compositor-*,remotion-browser,${PACKAGED_FF_DIR}}`
-        : `{node_modules/@remotion/compositor-*,${PACKAGED_FF_DIR}}`,
+        ? `{node_modules/@remotion/compositor-*,remotion-browser,${PACKAGED_FF_DIR},${PACKAGED_SPIKE_MEDIA_DIR}}`
+        : `{node_modules/@remotion/compositor-*,${PACKAGED_FF_DIR},${PACKAGED_SPIKE_MEDIA_DIR}}`,
     },
     osxUniversal: {
       // These compositor binaries are already architecture-specific and should not be
@@ -212,9 +238,9 @@ const config = {
         outDir: getPrebuiltRemotionBundlePath(buildPath),
       });
 
-      // Set REMOTION_ELECTRON_PACKAGE_BROWSER=true to package Chrome Headless
-      // Shell into the app. This increases the final app size significantly, but
-      // packaged renders can run completely offline.
+      // Chrome Headless Shell is packaged into the app by default (set
+      // REMOTION_ELECTRON_PACKAGE_BROWSER=false to skip it). This increases the final
+      // app size significantly, but packaged renders can run completely offline.
       // IMPORTANT: This is not supported for macOS universal builds.
       // `ensureBrowser()` only downloads a browser for the current architecture,
       // so the other packaged architecture would not get an offline browser.
@@ -240,6 +266,8 @@ const config = {
         buildPath,
         platform,
       });
+
+      await stageSpikeMedia({ buildPath });
     },
   },
   plugins: [
