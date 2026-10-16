@@ -150,8 +150,9 @@ Every imported clip goes through: probe → decide → transcode → thumbnail �
 - Rotation baked in (ffmpeg autorotates by default when transcoding; verify with a rotated fixture)
 - Scale so the long edge is at most 1920, keep aspect (cover-fit happens in the composition)
 - HDR → SDR tone map. Preferred chain if `zscale` is available:
-  `zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p`
-  Check availability at startup (`ffmpeg -hide_banner -filters`). If missing, fall back to a filter the bundled build supports (e.g. `libplacebo` or `colorspace`) and log which path ran. Compare visually against the original on a real iPhone HDR clip.
+  `zscale=t=linear:npl=180,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p`
+  (`npl=180` was tuned in step 1.2 against an Apple SDR reference, see DECISIONS #24; the original doc value was 100.)
+  Check availability at startup (`ffmpeg -hide_banner -filters`). If missing, fall back to a filter the bundled build supports (e.g. `libplacebo` or `colorspace`) and log which path ran. (Step 1.2 deliberately supports zscale only: DECISIONS #23.) Compare visually against the original on a real iPhone HDR clip.
 - Constant 30 fps (`-fps_mode cfr -r 30`, or `-vsync cfr` on older builds)
 - `-c:v libx264 -preset veryfast -crf 18 -pix_fmt yuv420p`, color tags set to bt709
 - Audio: `-c:a aac -ar 48000 -ac 2`. If no audio stream, add silent audio so concatenation and muting behave consistently.

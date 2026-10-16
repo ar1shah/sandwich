@@ -89,6 +89,8 @@ npm run studio         # Remotion Studio for remotion/
 npm run ffmpeg:fetch   # download pinned, hash-checked ffmpeg + ffprobe into vendor/ffmpeg/ (also runs on postinstall)
 npm run ffmpeg:check   # print FFmpeg capability report, exit 1 if a required filter/encoder is missing
 npm run probe -- <file> # print the ProbeResult for a video file
+npm run normalize -- <in> <out.mp4>  # normalize one clip (+ thumbnail and filmstrip next to it); add --tonemap-variants for HDR tuning
+npm run test:normalize # normalize every fixture and fixtures/real clip into out/normalized/ and assert the working-file spec (needs npm run fixtures first)
 npm run fixtures       # generate test media + fixtures/sample.recipe.json (cached; add -- --force to rebuild)
 npm run verify:spike -- <mp4...>  # step 0.4: spec + faststart + audio-window checks on spike renders (temporary, 1.5 supersedes)
 npm run render:sample  # render fixtures/sample.recipe.json to out/ (placeholder until step 0.4)

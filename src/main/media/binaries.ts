@@ -58,3 +58,15 @@ export function resolveFfPaths({
     ffprobe: path.join(dir, getFfBinaryName("ffprobe", platform)),
   };
 }
+
+// Dev/script convenience: binaries from vendor/ relative to the project root (cwd).
+// The packaged app passes its own FfPaths from resolveFfPaths instead.
+export function resolveDevFfPaths(): FfPaths {
+  return resolveFfPaths({
+    isPackaged: false,
+    appPath: process.cwd(),
+    resourcesPath: "",
+    platform: process.platform,
+    arch: process.arch,
+  });
+}

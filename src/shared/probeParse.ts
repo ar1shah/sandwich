@@ -11,6 +11,7 @@ const sideDataSchema = z.looseObject({
 });
 
 const streamSchema = z.looseObject({
+  index: z.number().optional(),
   codec_type: z.string().optional(),
   codec_name: z.string().optional(),
   channels: z.number().optional(),
@@ -19,6 +20,9 @@ const streamSchema = z.looseObject({
   height: z.number().optional(),
   pix_fmt: z.string().optional(),
   color_transfer: z.string().optional(),
+  color_space: z.string().optional(),
+  color_primaries: z.string().optional(),
+  color_range: z.string().optional(),
   r_frame_rate: z.string().optional(),
   avg_frame_rate: z.string().optional(),
   duration: z.string().optional(),
@@ -53,7 +57,15 @@ export type ProbeResult = {
   hasAudio: boolean;
   audioChannels: number | null; // first audio stream
   audioSampleRate: number | null; // Hz, first audio stream
+  audioCodec: string | null; // codec of the chosen audio stream
+  audioDuration: number | null; // seconds, chosen audio stream (container duration fallback is not used)
+  // Absolute ffprobe stream index of the first audio stream ffmpeg can decode, or null.
+  // iPhones also write an `apac` spatial audio stream (no codec_name); it never wins.
+  audioStreamIndex: number | null;
   colorTransfer: string | null;
+  colorSpace: string | null; // matrix, e.g. "bt709", "bt2020nc"
+  colorPrimaries: string | null;
+  colorRange: string | null; // "tv" | "pc" | null when untagged
   isHdr: boolean;
   pixFmt: string | null;
   recordedAt: string | null; // ISO 8601 UTC
@@ -93,6 +105,25 @@ export function getRotation(stream: FfprobeStream): Rotation {
   }
   const tag = Number(stream.tags?.rotate);
   return Number.isFinite(tag) ? normalizeRotation(tag) : 0;
+}
+
+const UNDECODABLE_CODECS = new Set(["unknown", "none"]);
+
+// First audio stream with a codec name ffmpeg recognises. Streams without an `index`
+// (hand-written test data) fall back to their position in the list.
+function findDecodableAudio(
+  streams: readonly FfprobeStream[],
+): { stream: FfprobeStream; index: number } | null {
+  for (const [position, stream] of streams.entries()) {
+    if (
+      stream.codec_type === "audio" &&
+      stream.codec_name &&
+      !UNDECODABLE_CODECS.has(stream.codec_name)
+    ) {
+      return { stream, index: stream.index ?? position };
+    }
+  }
+  return null;
 }
 
 const HDR_TRANSFERS = new Set(["arib-std-b67", "smpte2084"]);
@@ -177,7 +208,8 @@ export function parseProbeJson(raw: unknown): ProbeResult {
   const rotation = getRotation(video);
   const swap = rotation === 90 || rotation === 270;
   const colorTransfer = video.color_transfer ?? null;
-  const audio = data.streams.find((stream) => stream.codec_type === "audio");
+  const audioPick = findDecodableAudio(data.streams);
+  const audio = audioPick?.stream;
   const sampleRate = Number(audio?.sample_rate);
 
   return {
@@ -193,7 +225,16 @@ export function parseProbeJson(raw: unknown): ProbeResult {
     audioChannels: audio?.channels ?? null,
     audioSampleRate:
       Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : null,
+    audioCodec: audio?.codec_name ?? null,
+    audioDuration:
+      audio?.duration !== undefined && Number.isFinite(Number(audio.duration))
+        ? Number(audio.duration)
+        : null,
+    audioStreamIndex: audioPick?.index ?? null,
     colorTransfer,
+    colorSpace: video.color_space ?? null,
+    colorPrimaries: video.color_primaries ?? null,
+    colorRange: video.color_range ?? null,
     isHdr: isHdrTransfer(colorTransfer),
     pixFmt: video.pix_fmt ?? null,
     recordedAt: getRecordedAt(data.format?.tags, video),
