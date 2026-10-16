@@ -67,7 +67,8 @@ src/
 remotion/        # Remotion entry + <SandwichVideo> composition
 scripts/         # dev scripts: fixtures, render CLI, verify
 tests/           # vitest + playwright
-fixtures/        # generated test media (gitignored except the generator)
+fixtures/        # generated test media (gitignored; made by scripts/generate-fixtures.ts). Only fixtures/real/README.md is tracked
+assets/          # bundled static assets (fonts in assets/fonts/, with their licenses)
 docs/            # ROADMAP, CHECKLIST, BUILD_PROMPTS; reference/ holds SPEC, ARCHITECTURE, DECISIONS
 ```
 
@@ -87,7 +88,7 @@ npm run studio         # Remotion Studio for remotion/
 npm run ffmpeg:fetch   # download pinned, hash-checked ffmpeg + ffprobe into vendor/ffmpeg/ (also runs on postinstall)
 npm run ffmpeg:check   # print FFmpeg capability report, exit 1 if a required filter/encoder is missing
 npm run probe -- <file> # print the ProbeResult for a video file
-npm run fixtures       # generate test media into fixtures/ (placeholder until step 0.3)
+npm run fixtures       # generate test media + fixtures/sample.recipe.json (cached; add -- --force to rebuild)
 npm run render:sample  # render fixtures/sample.recipe.json to out/ (placeholder until step 0.4)
 npm run verify:render  # ffprobe asserts on a rendered file (placeholder until step 1.5)
 npm run make           # package the app (currently electron-forge package)
