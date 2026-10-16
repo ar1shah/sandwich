@@ -183,3 +183,32 @@ We need the partner's chip (Intel vs Apple Silicon) and macOS version. Builds ar
 ## #21 2026-10-16: Coverage tooling and exact vitest pin
 `@vitest/coverage-v8` added as a devDependency, and `vitest` moved from `^5.0.5` to exact `5.0.5`, so the two cannot drift apart (their versions must match). Coverage is scoped to `src/shared/**` (`npm run test:coverage`, v8 provider, text + summary). This extends the exact-pin habit used for Remotion to the test toolchain.
 
+
+## #22 2026-10-16: Import normalization details (step 1.2)
+- **Filter order.** `fps=30` first, then `scale=W:H`, then the tone map (HDR) or the range/matrix `scale` (SDR). A 60 fps source only pays for half the frames in everything after the first filter, and the tone map runs at output resolution. Rotation is left to ffmpeg's autorotate (verified: the rotated fixture comes out upright, rotation 0, red bar on top).
+- **Even sizes.** `targetSize` rounds both edges to even numbers (1206x2622 -> 884x1920) and never upscales. The output may therefore differ from the exact aspect ratio by up to 1 px; `normalizeCheck` allows 1 px.
+- **Audio stream choice.** Real iPhone clips carry two audio streams: AAC stereo plus Apple `apac` spatial audio (4 ch) that ffmpeg cannot decode, and six `mebx` data tracks. `ProbeResult.audioStreamIndex` is the absolute index of the first audio stream with a recognised `codec_name`; `hasAudio`, channels and sample rate come from that stream. `buildNormalizeArgs` always maps `0:v:0` and `0:<audioStreamIndex>` explicitly, plus `-map_chapters -1 -map_metadata -1`. No decodable audio means a `anullsrc` stereo 48 kHz input is mapped instead.
+- **Audio sync.** `aresample=async=1:first_pts=0,apad` with output `-t <source duration>`: audio starts at 0, is padded with silence if short, and cut if long. All 15 clips end with audio within one frame of video.
+- **SDR range and matrix are inputs, not assumptions.** The SDR `scale` sets `in_range` from `colorRange` (`pc` -> full) and `in_color_matrix` from `colorSpace` (`smpte170m`/`bt470bg` -> bt601, everything else including untagged -> bt709), then outputs tv range and bt709. This matters: the real screen recording is full-range `yuvj420p`.
+- **`ProbeResult` grew** `audioStreamIndex`, `audioCodec`, `audioDuration`, `colorSpace`, `colorPrimaries`, `colorRange`.
+- **Output written to `<out>.partial`** and renamed on success. On failure or abort the partial is deleted only after the ffmpeg child has emitted `close` (Windows holds file locks until then).
+- **Not changed on purpose:** no `-g` / keyframe interval override yet. Revisit in 1.4 if scrubbing in the Player is slow (default x264 GOP is up to 250 frames, about 8 s at 30 fps).
+
+## #23 2026-10-16: HDR tone mapping is zscale-only (deviation from BUILD_PROMPTS 1.2)
+BUILD_PROMPTS step 1.2 and ARCHITECTURE section 6 say to fall back to `libplacebo` or `colorspace` when `zscale` is missing. We do not. `zscale` is a REQUIRED filter in `capabilitiesParse.ts`, so a build without it already fails `npm run ffmpeg:check` and the startup capability check; a fallback could never run. `libplacebo` also needs a Vulkan device (absent in the pinned build and unreliable on headless machines), and `colorspace` cannot read HLG or PQ transfers. `chooseToneMapPath` therefore returns `"zscale"` or throws a clear error, and `NormalizeResult.toneMapPath` is `"zscale" | null`.
+**Revisit if:** the pinned FFmpeg build changes and loses `zscale`.
+
+## #24 2026-10-16: Tone map evaluation method and results (step 1.2)
+**Method.** Comparing HDR playback to an SDR file on an EDR display is not fair (the original always looks brighter), and mean luma of HLG code values versus SDR code values means nothing. The reference is Apple's own conversion of the same clip: `avconvert -s fixtures/real/iphone_hdr.MOV -o out/normalized/iphone_hdr_apple_sdr.mov -p Preset1920x1080` (confirmed bt709 / tv / yuv420p / h264, 1080x1920). `npm run normalize -- <hdr clip> <out.mp4> --tonemap-variants` writes the variants and prints mean Y and R/G/B (6 sampled frames, 360x640 decode) and SSIM against that reference, plus a side-by-side PNG.
+**Results (iphone_hdr.MOV, HLG):**
+
+| variant | meanY | meanR | meanG | meanB | SSIM vs Apple |
+|---|---|---|---|---|---|
+| Apple reference | 125.2 | 131.8 | 123.9 | 117.6 | 1.0000 |
+| hable, npl 100 (doc default) | 142.9 | 151.4 | 141.4 | 133.4 | 0.9795 |
+| hable, npl 180 | 124.0 | 131.1 | 122.7 | 115.7 | 0.9904 |
+| hable, npl 203 | 120.0 | 126.8 | 118.8 | 112.1 | 0.9902 |
+| mobius, npl 100 | 167.7 | 178.2 | 165.7 | 156.6 | 0.9091 |
+| reinhard, npl 100 | 163.8 | 173.9 | 161.9 | 153.3 | 0.9289 |
+
+The doc default is too bright (about 14% over the reference); mobius and reinhard at npl 100 wash out highlights. Hable with npl 180 to 203 tracks Apple's colour and brightness best. **Final parameters (picked by the human from the side-by-side PNG): `tonemap=hable`, `npl=180`, `desat=0`.** `DEFAULT_TONE_MAP` in `src/shared/ffmpegArgs.ts` holds them; the ARCHITECTURE section 6 chain is otherwise unchanged (npl 100 there is superseded). npl 180 is a point on a curve fitted to one HLG clip: re-run `--tonemap-variants` on a few more real clips (indoor, outdoor, night) before the Phase 1 exit test, and revisit if highlights clip or shadows look crushed.

@@ -197,6 +197,73 @@ describe("parseProbeJson", () => {
     expect(result.duration).toBeCloseTo(6.35, 2);
   });
 
+  it("picks the AAC stream over the undecodable apac spatial stream", () => {
+    const result = parseProbeJson(loadSample("iphone_hlg_portrait"));
+    // Stream 1 is AAC stereo; stream 2 is apac (4 ch, no codec_name); 3+ are mebx data.
+    expect(result.audioStreamIndex).toBe(1);
+    expect(result.audioChannels).toBe(2);
+    expect(result.audioSampleRate).toBe(48000);
+  });
+
+  it("reports the color tags of the video stream", () => {
+    const result = parseProbeJson(loadSample("iphone_hlg_portrait"));
+    expect(result).toMatchObject({
+      colorSpace: "bt2020nc",
+      colorPrimaries: "bt2020",
+      colorRange: "tv",
+    });
+    const untagged = parseProbeJson(loadSample("landscape_h264_noaudio"));
+    expect(untagged).toMatchObject({
+      colorSpace: null,
+      colorPrimaries: null,
+      colorRange: null,
+      audioStreamIndex: null,
+    });
+  });
+
+  it("treats a clip with only undecodable audio as silent", () => {
+    const result = parseProbeJson({
+      streams: [
+        {
+          index: 0,
+          codec_type: "video",
+          codec_name: "h264",
+          width: 1080,
+          height: 1920,
+          avg_frame_rate: "30/1",
+          r_frame_rate: "30/1",
+          duration: "2.0",
+        },
+        { index: 1, codec_type: "audio", channels: 4, sample_rate: "48000" },
+        { index: 2, codec_type: "audio", codec_name: "unknown", channels: 2 },
+      ],
+    });
+    expect(result).toMatchObject({
+      hasAudio: false,
+      audioStreamIndex: null,
+      audioChannels: null,
+      audioSampleRate: null,
+    });
+  });
+
+  it("falls back to list position when streams carry no index", () => {
+    const result = parseProbeJson({
+      streams: [
+        {
+          codec_type: "video",
+          codec_name: "h264",
+          width: 1080,
+          height: 1920,
+          avg_frame_rate: "30/1",
+          r_frame_rate: "30/1",
+          duration: "2.0",
+        },
+        { codec_type: "audio", codec_name: "aac", channels: 2 },
+      ],
+    });
+    expect(result.audioStreamIndex).toBe(1);
+  });
+
   it("prefers Apple's creation date over creation_time", () => {
     const result = parseProbeJson({
       streams: [

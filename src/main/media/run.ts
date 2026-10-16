@@ -72,3 +72,70 @@ export function runCaptureBuffer(
 ): Promise<RunBufferResult> {
   return runCollect(bin, args, options);
 }
+
+export type StreamingOptions = {
+  // Called with every stdout chunk as it arrives (ffmpeg `-progress pipe:1`).
+  onStdoutChunk?: (chunk: string) => void;
+  signal?: AbortSignal;
+  cwd?: string;
+};
+
+export class AbortError extends Error {
+  constructor(message = "Aborted") {
+    super(message);
+    this.name = "AbortError";
+  }
+}
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+// Runs a long job with live stdout and cancellation. On abort the child is killed and this
+// waits for its `close` event before rejecting, so callers can safely delete its output
+// files afterwards (an open handle would block that on Windows).
+export function runStreaming(
+  bin: string,
+  args: readonly string[],
+  { onStdoutChunk, signal, cwd }: StreamingOptions = {},
+): Promise<{ stderr: string }> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new AbortError());
+      return;
+    }
+
+    const child = spawn(bin, args, { windowsHide: true, cwd });
+    const stderr: Buffer[] = [];
+    let aborted = false;
+    let spawnError: Error | null = null;
+
+    const onAbort = (): void => {
+      aborted = true;
+      child.kill("SIGKILL");
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => onStdoutChunk?.(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.on("error", (error) => {
+      // 'close' still follows a failed spawn or kill; settle there.
+      spawnError = error;
+    });
+    child.on("close", (code) => {
+      signal?.removeEventListener("abort", onAbort);
+      const text = Buffer.concat(stderr).toString("utf8");
+      if (aborted) {
+        reject(new AbortError());
+      } else if (spawnError) {
+        reject(spawnError);
+      } else if (code === 0) {
+        resolve({ stderr: text });
+      } else {
+        const tail = text.trim().split("\n").slice(-5).join("\n");
+        reject(new Error(`${bin} exited with code ${code}: ${tail}`));
+      }
+    });
+  });
+}

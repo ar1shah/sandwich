@@ -23,7 +23,9 @@
     "ffmpeg:fetch": "tsx scripts/ffmpeg-fetch.ts",
     "ffmpeg:check": "tsx scripts/ffmpeg-check.ts",
     "probe": "tsx scripts/probe.ts",
-    "verify:spike": "tsx scripts/verify-spike.ts"
+    "verify:spike": "tsx scripts/verify-spike.ts",
+    "normalize": "tsx scripts/normalize.ts",
+    "test:normalize": "tsx scripts/test-normalize.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.535",
