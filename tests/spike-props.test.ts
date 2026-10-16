@@ -12,7 +12,7 @@ import {
 } from "../src/shared/spikeProps";
 
 describe("buildSpikeProps", () => {
-  const props = buildSpikeProps("http://127.0.0.1:5555/");
+  const props = buildSpikeProps("http://127.0.0.1:5555/m/tok/");
 
   it("is 12 seconds / 360 frames at 30 fps", () => {
     expect(SPIKE_FPS).toBe(30);
@@ -47,7 +47,7 @@ describe("buildSpikeProps", () => {
 
   it("joins media URLs without double slashes and encodes names", () => {
     expect(props.clips[0]?.src).toBe(
-      "http://127.0.0.1:5555/vertical_1080x1920_30.mp4",
+      "http://127.0.0.1:5555/m/tok/vertical_1080x1920_30.mp4",
     );
     expect(buildSpikeProps("http://h:1").clips[1]?.src).toBe(
       "http://h:1/vertical_b_1080x1920_30.mp4",

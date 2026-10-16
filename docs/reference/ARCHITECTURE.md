@@ -133,10 +133,10 @@ Both the Player (in the Electron renderer) and Remotion's headless browser need 
 
 - Binds to `127.0.0.1` only, random free port, started at app launch
 - Serves files from the library root only. Rejects path traversal (`..`), absolute paths, and anything outside the root after `path.resolve`.
-- Requires a random per-session token in the URL (`/m/<token>/<relative path>`), so other local apps cannot read the library
+- Requires a random per-session token in the URL (`/m/<token>/<relative path>`), so other local apps cannot read the library. Details in DECISIONS #25
 - Supports HTTP Range requests (206 Partial Content), required for video seeking
 - Correct `Content-Type` for mp4, jpg, png, json
-- A helper `mediaUrl(relPath)` in shared code builds URLs; the base URL is fetched once from main
+- A helper `mediaUrl(base, relPath)` in shared code builds URLs; the base URL is fetched once from main with `library.mediaBaseUrl()`
 
 ## 6. Import normalization (FFmpeg)
 

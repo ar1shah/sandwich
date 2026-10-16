@@ -2,6 +2,7 @@
 // (builds the input props, picks the encoder options) and remotion/ (frame counts).
 // Pure: no Node or DOM imports. Removed together with the spike (see CHECKLIST 1.4).
 import { z } from "zod";
+import { mediaUrl } from "./mediaUrl";
 
 export const SPIKE_COMPOSITION_ID = "Spike";
 export const SPIKE_FPS = 30;
@@ -62,14 +63,13 @@ export type SpikeProps = {
   clips: SpikeClipProps[];
 };
 
-// baseUrl is the media server origin, e.g. "http://127.0.0.1:51234".
+// baseUrl is the media server base URL, e.g. "http://127.0.0.1:51234/m/<token>".
 export function buildSpikeProps(baseUrl: string): SpikeProps {
-  const origin = baseUrl.replace(/\/+$/, "");
   let from = 0;
   const clips = SPIKE_SEGMENTS.map((segment): SpikeClipProps => {
     const clip: SpikeClipProps = {
       slot: segment.slot,
-      src: `${origin}/${encodeURIComponent(segment.file)}`,
+      src: mediaUrl(baseUrl, segment.file),
       from,
       trimBeforeFrames: segment.trimBeforeFrames,
       durationInFrames: segment.durationInFrames,
@@ -82,8 +82,9 @@ export function buildSpikeProps(baseUrl: string): SpikeProps {
 }
 
 // Default props for the composition registry (Studio, selectComposition metadata).
-export const DEFAULT_SPIKE_PROPS: SpikeProps =
-  buildSpikeProps("http://127.0.0.1:0");
+export const DEFAULT_SPIKE_PROPS: SpikeProps = buildSpikeProps(
+  "http://127.0.0.1:0/m/studio",
+);
 
 export const SPIKE_MODES = [
   "sw",

@@ -1,6 +1,14 @@
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { resolveInside } from "../src/main/spike/pathGuard";
+import { afterAll, describe, expect, it } from "vitest";
+import { resolveInside, resolveInsideReal } from "../src/main/media/pathGuard";
 
 describe("resolveInside (posix)", () => {
   const root = "/srv/media";
@@ -56,5 +64,61 @@ describe("resolveInside (win32)", () => {
 
   it("rejects a sibling that shares the root as a string prefix", () => {
     expect(guard("..\\media-evil\\clip.mp4")).toBeNull();
+  });
+
+  it("compares case-insensitively", () => {
+    expect(guard("..\\MEDIA\\clip.mp4")).toBe("C:\\MEDIA\\clip.mp4");
+    expect(guard("..\\MEDIA-EVIL\\clip.mp4")).toBeNull();
+  });
+});
+
+describe("resolveInsideReal (real filesystem)", () => {
+  const base = mkdtempSync(path.join(os.tmpdir(), "pathguard-"));
+  const root = path.join(base, "root");
+  const outside = path.join(base, "outside");
+  mkdirSync(path.join(root, "sub"), { recursive: true });
+  mkdirSync(outside);
+  writeFileSync(path.join(root, "sub", "clip.mp4"), "x");
+  writeFileSync(path.join(outside, "secret.txt"), "secret");
+  symlinkSync(outside, path.join(root, "escape"));
+  symlinkSync(path.join(outside, "secret.txt"), path.join(root, "link.txt"));
+  symlinkSync(path.join(root, "sub"), path.join(root, "inner-link"));
+  const rootViaLink = path.join(base, "root-link");
+  symlinkSync(root, rootViaLink);
+
+  afterAll(() => rmSync(base, { recursive: true, force: true }));
+
+  it("resolves files inside the root", async () => {
+    const result = await resolveInsideReal(root, ["sub", "clip.mp4"]);
+    expect(result.kind).toBe("ok");
+  });
+
+  it("works when the root itself is reached through a symlink", async () => {
+    const result = await resolveInsideReal(rootViaLink, ["sub", "clip.mp4"]);
+    expect(result.kind).toBe("ok");
+  });
+
+  it("allows a symlink that stays inside the root", async () => {
+    const result = await resolveInsideReal(root, ["inner-link", "clip.mp4"]);
+    expect(result.kind).toBe("ok");
+  });
+
+  it("rejects symlinks that leave the root", async () => {
+    expect((await resolveInsideReal(root, ["escape", "secret.txt"])).kind).toBe(
+      "outside",
+    );
+    expect((await resolveInsideReal(root, ["link.txt"])).kind).toBe("outside");
+  });
+
+  it("rejects traversal and reports missing files", async () => {
+    expect((await resolveInsideReal(root, ["..", "outside"])).kind).toBe(
+      "outside",
+    );
+    expect((await resolveInsideReal(root, ["nope.mp4"])).kind).toBe("missing");
+  });
+
+  it("reports a missing root", async () => {
+    const result = await resolveInsideReal(path.join(base, "gone"), ["a"]);
+    expect(result.kind).toBe("no-root");
   });
 });
