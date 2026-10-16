@@ -1,10 +1,11 @@
 import { Composition, type CalculateMetadataFunction } from "remotion";
+import { SANDWICH_COMPOSITION_ID } from "../src/shared/composition";
 import { createEmptyRecipe, RecipeSchema } from "../src/shared/recipe";
 import { buildTimeline } from "../src/shared/timeline";
 import { SandwichVideo } from "./SandwichVideo";
 import type { SandwichProps } from "./types";
 
-export const SANDWICH_COMPOSITION_ID = "Sandwich";
+export { SANDWICH_COMPOSITION_ID };
 
 // Fixed id and date so the prebuilt bundle is deterministic. Empty slots render black; real
 // props always come from the caller (Player, Studio --props, renderMedia).

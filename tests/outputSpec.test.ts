@@ -8,6 +8,10 @@ const goodVideo = {
   width: 1080,
   height: 1920,
   pix_fmt: "yuv420p",
+  color_space: "bt709",
+  color_transfer: "bt709",
+  color_primaries: "bt709",
+  color_range: "tv",
   r_frame_rate: "30/1",
   avg_frame_rate: "30/1",
   duration: "12.000000",
@@ -30,13 +34,33 @@ describe("checkOutputSpec", () => {
     expect(failures({ streams: [goodVideo, goodAudio] })).toEqual([]);
   });
 
-  it("allows one frame of duration drift but not two", () => {
-    expect(
-      failures({ streams: [{ ...goodVideo, duration: "12.033" }, goodAudio] }),
-    ).toEqual([]);
-    expect(
-      failures({ streams: [{ ...goodVideo, duration: "12.080" }, goodAudio] }),
-    ).toContain("video duration");
+  it("allows 0.1 s of video duration drift but not more", () => {
+    const at = (seconds: string) =>
+      failures({
+        streams: [
+          { ...goodVideo, duration: seconds },
+          { ...goodAudio, duration: seconds },
+        ],
+      });
+    expect(at("12.080")).toEqual([]);
+    expect(at("11.920")).toEqual([]);
+    expect(at("12.150")).toEqual(["video duration"]);
+  });
+
+  it("flags colour tags that are not SDR Rec.709 limited range", () => {
+    const tagged = (extra: Record<string, string>) =>
+      failures({ streams: [{ ...goodVideo, ...extra }, goodAudio] });
+    expect(tagged({ color_space: "unknown" })).toEqual(["color_space"]);
+    expect(tagged({ color_transfer: "iec61966-2-1" })).toEqual([
+      "color_transfer",
+    ]);
+    expect(tagged({ color_primaries: "bt2020" })).toEqual(["color_primaries"]);
+    expect(tagged({ color_range: "pc" })).toEqual(["color_range"]);
+    const untagged: Record<string, unknown> = { ...goodVideo };
+    delete untagged.color_space;
+    expect(failures({ streams: [untagged, goodAudio] })).toEqual([
+      "color_space",
+    ]);
   });
 
   it("flags audio that drifts more than a frame from the video", () => {
@@ -68,6 +92,23 @@ describe("checkOutputSpec", () => {
         "audio channels",
       ]),
     );
+  });
+
+  it("hard fails a missing or non-AAC/48k/stereo audio stream", () => {
+    expect(failures({ streams: [goodVideo] })).toEqual(["audio stream"]);
+    expect(
+      failures({
+        streams: [goodVideo, { ...goodAudio, codec_name: "mp3" }],
+      }),
+    ).toEqual(["audio codec"]);
+    expect(
+      failures({
+        streams: [goodVideo, { ...goodAudio, sample_rate: "44100" }],
+      }),
+    ).toEqual(["audio rate"]);
+    expect(
+      failures({ streams: [goodVideo, { ...goodAudio, channels: 1 }] }),
+    ).toEqual(["audio channels"]);
   });
 
   it("fails when streams are missing", () => {

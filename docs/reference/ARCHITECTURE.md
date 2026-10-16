@@ -171,8 +171,8 @@ Progress: parse ffmpeg `-progress pipe:1` output for `out_time_ms` and report pe
 2. Main resolves the export name (shared `naming.ts`) and creates the folder.
 3. Main converts relative media paths to media server URLs and builds `inputProps`.
 4. `selectComposition({ serveUrl: bundleDir, id: 'Sandwich', inputProps })`
-5. `renderMedia({ codec: 'h264', composition, serveUrl, inputProps, outputLocation, onProgress, ... })`
-   - Try Remotion's hardware acceleration option on macOS if the pinned version supports it; fall back to software.
+5. `renderMedia({ codec: 'h264', composition, serveUrl, inputProps, outputLocation, onProgress, ... })`, implemented by `renderRecipe()` in `src/main/render/render-recipe.ts` (no Electron imports, so the CLI and main share it). Required options: `pixelFormat: 'yuv420p'`, `colorSpace: 'bt709'` (the default converts with BT.601), `audioCodec: 'aac'`, `sampleRate: 48000`, `enforceAudioTrack: true`. The same `inputProps` go to `selectComposition` and `renderMedia`.
+   - Software x264 (CRF) is the default; hardware acceleration is not used (DECISIONS #14, #27).
    - Packaged builds: `binariesDirectory` → compositor inside `app.asar.unpacked`, `browserExecutable` → bundled headless browser.
 6. Run the verify step (ffprobe) on the output. Mark video `exported`, write the `.recipe.json` sidecar.
 7. On failure: mark `failed`, keep the recipe, surface the error with a "Copy details" button.
@@ -205,7 +205,7 @@ events: job:progress, job:done, job:failed
 
 - **Unit (Vitest)**: everything in `src/shared/`, plus repository functions against a temp SQLite DB, plus the media server's path validation.
 - **Media integration**: scripts that run normalization on each fixture and assert the output with ffprobe.
-- **Render verify**: `scripts/verify-render.ts <file> <expectedSeconds>` asserts 1080x1920, 30 fps, h264, yuv420p, AAC, duration within 0.1 s, `faststart` (moov atom before mdat).
+- **Render verify**: `scripts/verify-render.ts <file> [expectedSeconds] [--recipe <json>]` asserts 1080x1920, 30 fps, h264 High, yuv420p, Rec.709 colour tags, AAC 48 kHz stereo (hard fail if the audio stream is missing), duration within 0.1 s, `faststart` (moov atom before mdat). With `--recipe`: muted clips are silent, unmuted clips are not silent when their source is audible, and a plain clip's centre patch matches its source frame (colour fidelity).
 - **E2E smoke (Playwright Electron)**: launch app, create product, add caption, build a video from fixtures, export, assert file exists.
 - **Human checks**: listed per step in BUILD_PROMPTS.md. Video quality bugs are visual; look at the output.
 

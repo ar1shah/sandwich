@@ -1,13 +1,18 @@
 import {
-  type CancelSignal,
   type DownloadBrowserProgressFn,
   type RenderMediaProgress,
   ensureBrowser,
+  makeCancelSignal,
   renderMedia,
   selectComposition,
 } from "@remotion/renderer";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import type { SandwichProps } from "../../../remotion/types";
+import { SANDWICH_COMPOSITION_ID } from "../../shared/composition";
+import { isRenderable, RecipeSchema, type Recipe } from "../../shared/recipe";
+import { msPerOutputSecond } from "../../shared/renderStats";
+import { buildTimeline } from "../../shared/timeline";
 import {
   RENDER_CANCELLED_MESSAGE,
   type RenderResult,
@@ -20,8 +25,6 @@ import {
   hasPrebuiltRemotionBundle,
 } from "./remotion-bundle";
 import { getPackagedBrowserPaths } from "./packaged-browser";
-
-export type RenderHardwareAcceleration = "disable" | "if-possible" | "required";
 
 function isRenderCancelledError(error: unknown): boolean {
   return error instanceof Error && error.message === RENDER_CANCELLED_MESSAGE;
@@ -51,7 +54,10 @@ function getBinariesDirectory({
   );
 }
 
-async function getServeUrl({
+// Where Remotion loads the composition from. Packaged builds use the bundle made at package
+// time; dev builds bundle now. Callers that render several videos in one process (the CLI,
+// the 4.4 render queue) call this once and pass the result to every renderRecipe call.
+export async function prepareServeUrl({
   isPackaged,
   projectRoot,
   onUpdate,
@@ -91,67 +97,52 @@ async function getServeUrl({
   return { serveUrl, bundleMs: performance.now() - started };
 }
 
-// Remotion prints the encoder it picked through console.log at "verbose" log level.
-// Tap the console for the duration of a render so the choice can be recorded.
-const ENCODER_PATTERN =
-  /\b(h264_videotoolbox|hevc_videotoolbox|prores_videotoolbox|h264_nvenc|libx264|libx265|prores_ks)\b/;
-const TAPPED_METHODS = ["log", "info", "warn", "error", "debug"] as const;
-
-function tapConsole(): { stop: () => string[] } {
-  const lines: string[] = [];
-  const originals = TAPPED_METHODS.map((method) => console[method]);
-
-  TAPPED_METHODS.forEach((method, index) => {
-    const original = originals[index];
-    console[method] = (...args: unknown[]) => {
-      const text = args
-        .map((arg) => (typeof arg === "string" ? arg : String(arg)))
-        .join(" ");
-      if (ENCODER_PATTERN.test(text)) {
-        lines.push(text.slice(0, 400));
-      }
-      original?.apply(console, args);
-    };
-  });
-
-  return {
-    stop: () => {
-      TAPPED_METHODS.forEach((method, index) => {
-        const original = originals[index];
-        if (original) {
-          console[method] = original;
-        }
-      });
-      return lines;
-    },
-  };
-}
-
-export const renderVideo = async ({
-  isPackaged,
-  outputPath,
-  projectRoot,
-  compositionId,
-  inputProps,
-  hardwareAcceleration = "disable",
-  videoBitrate = null,
-  logLevel = "info",
-  onUpdate,
-  cancelSignal,
-}: {
-  isPackaged: boolean;
+export type RenderRecipeOptions = {
   outputPath: string;
+  // http://127.0.0.1:<port>/m/<token>. Contains the token: never log it.
+  mediaBaseUrl: string;
+  isPackaged: boolean;
   projectRoot: string;
-  compositionId: string;
-  inputProps: Record<string, unknown>;
-  hardwareAcceleration?: RenderHardwareAcceleration;
-  // e.g. "8M". Hardware encoders cannot use CRF, so they need a bitrate.
-  videoBitrate?: string | null;
-  logLevel?: "verbose" | "info" | "warn" | "error";
-  onUpdate?: (update: RenderUpdate) => void;
-  cancelSignal?: CancelSignal;
-}): Promise<RenderResult> => {
+  // Skip bundling by passing the result of prepareServeUrl.
+  serveUrl?: string;
+  onProgress?: (update: RenderUpdate) => void;
+  signal?: AbortSignal;
+};
+
+export const renderRecipe = async (
+  recipeInput: Recipe,
+  {
+    outputPath,
+    mediaBaseUrl,
+    isPackaged,
+    projectRoot,
+    serveUrl: providedServeUrl,
+    onProgress,
+    signal,
+  }: RenderRecipeOptions,
+): Promise<RenderResult> => {
+  const recipe = RecipeSchema.parse(recipeInput);
+  if (!isRenderable(recipe)) {
+    throw new Error("Cannot render: every slot needs a clip.");
+  }
+  const { fps } = recipe.output;
+  const { totalFrames } = buildTimeline(recipe, fps);
+
+  // One object for both calls, so calculateMetadata sees the real recipe in each.
+  const inputProps: SandwichProps = { recipe, mediaBaseUrl };
+  const inputPropsRecord: Record<string, unknown> = { ...inputProps };
+
+  const { cancelSignal, cancel } = makeCancelSignal();
   let wasCancelled = false;
+  cancelSignal(() => {
+    wasCancelled = true;
+  });
+  const onAbort = (): void => cancel();
+  if (signal?.aborted) {
+    cancel();
+  }
+  signal?.addEventListener("abort", onAbort, { once: true });
+
   const browserExecutable = isPackaged
     ? (getPackagedBrowserPaths({
         arch: process.arch,
@@ -168,16 +159,10 @@ export const renderVideo = async ({
     };
   }
 
-  cancelSignal?.(() => {
-    wasCancelled = true;
-  });
-
   const totalStarted = performance.now();
-  const tap = logLevel === "verbose" ? tapConsole() : null;
-  let encoderLines: string[] = [];
 
   try {
-    onUpdate?.({
+    onProgress?.({
       type: "status",
       message: "Checking browser installation...",
     });
@@ -189,38 +174,44 @@ export const renderVideo = async ({
           chromeMode === "chrome-for-testing"
             ? "Chrome"
             : "Chrome Headless Shell";
-        const onProgress: DownloadBrowserProgressFn = (progress) => {
-          onUpdate?.({
+        const onDownloadProgress: DownloadBrowserProgressFn = (progress) => {
+          onProgress?.({
             type: "progress",
             stage: "browser-download",
             progress: progress.percent,
           });
         };
 
-        onUpdate?.({
+        onProgress?.({
           type: "status",
           message: `Downloading ${browserName}...`,
         });
 
         return {
           version: null,
-          onProgress,
+          onProgress: onDownloadProgress,
         };
       },
     });
 
     if (wasCancelled) {
-      return finishCancelledRender();
+      return await finishCancelledRender();
     }
 
-    const { serveUrl, bundleMs } = await getServeUrl({
-      isPackaged,
-      projectRoot,
-      onUpdate,
-    });
+    let serveUrl = providedServeUrl;
+    let bundleMs: number | null = null;
+    if (serveUrl === undefined) {
+      const prepared = await prepareServeUrl({
+        isPackaged,
+        projectRoot,
+        onUpdate: onProgress,
+      });
+      serveUrl = prepared.serveUrl;
+      bundleMs = prepared.bundleMs;
+    }
 
     if (wasCancelled) {
-      return finishCancelledRender();
+      return await finishCancelledRender();
     }
 
     const binariesDirectory = getBinariesDirectory({
@@ -231,19 +222,18 @@ export const renderVideo = async ({
     const selectStarted = performance.now();
     const composition = await selectComposition({
       serveUrl,
-      id: compositionId,
-      inputProps,
+      id: SANDWICH_COMPOSITION_ID,
+      inputProps: inputPropsRecord,
       binariesDirectory,
       browserExecutable,
-      logLevel,
     });
     const selectMs = performance.now() - selectStarted;
 
     if (wasCancelled) {
-      return finishCancelledRender();
+      return await finishCancelledRender();
     }
 
-    onUpdate?.({
+    onProgress?.({
       type: "status",
       message: "Rendering video...",
     });
@@ -254,22 +244,24 @@ export const renderVideo = async ({
       composition,
       serveUrl,
       codec: "h264",
+      pixelFormat: "yuv420p",
+      // Rec.709 matrix for the RGB -> YUV conversion (not just the tag); the default is bt601.
+      colorSpace: "bt709",
       outputLocation: outputPath,
-      inputProps,
+      inputProps: inputPropsRecord,
       binariesDirectory,
       browserExecutable,
       cancelSignal,
-      logLevel,
-      hardwareAcceleration,
-      ...(videoBitrate ? { videoBitrate } : {}),
       audioCodec: "aac",
       sampleRate: 48000,
+      // Keep the AAC stream even when every clip is muted or silent (output spec).
+      enforceAudioTrack: true,
       overwrite: true,
       onStart: ({ resolvedConcurrency }) => {
         concurrency = resolvedConcurrency;
       },
       onProgress(progress: RenderMediaProgress) {
-        onUpdate?.({
+        onProgress?.({
           type: "progress",
           stage: "rendering",
           progress: progress.progress * 100,
@@ -278,36 +270,30 @@ export const renderVideo = async ({
     });
     const renderMs = performance.now() - renderStarted;
 
-    encoderLines = tap?.stop() ?? [];
-
     if (wasCancelled) {
-      return finishCancelledRender();
+      return await finishCancelledRender();
     }
-
-    const encoder = encoderLines
-      .map((line) => ENCODER_PATTERN.exec(line)?.[1] ?? null)
-      .find((name) => name !== null);
 
     return {
       cancelled: false,
       outputPath,
+      outputSeconds: totalFrames / fps,
       timings: {
         bundleMs,
         selectMs,
         renderMs,
         totalMs: performance.now() - totalStarted,
+        renderMsPerOutputSecond: msPerOutputSecond(renderMs, totalFrames, fps),
       },
       concurrency,
-      encoder: encoder ?? null,
-      encoderLogLines: encoderLines.slice(0, 8),
     };
   } catch (error) {
     if (wasCancelled || isRenderCancelledError(error)) {
-      return finishCancelledRender();
+      return await finishCancelledRender();
     }
 
     throw error;
   } finally {
-    tap?.stop();
+    signal?.removeEventListener("abort", onAbort);
   }
 };

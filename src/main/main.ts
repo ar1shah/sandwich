@@ -8,8 +8,14 @@ import {
 import { resolveFfPaths } from "./media/binaries";
 import { getFfCapabilities } from "./media/capabilities";
 import { startMediaServer, type MediaServer } from "./media/mediaServer";
+import {
+  getRenderRecipeTestArgs,
+  runRenderRecipeTest,
+} from "./render/render-recipe-test-mode";
 
 let mainWindow: BrowserWindow | null = null;
+// `Sandwich --render-recipe <recipe> <out.mp4>`: render once without a window, then exit.
+const renderRecipeTestArgs = getRenderRecipeTestArgs(process.argv);
 
 if (app.isPackaged) {
   process.chdir(app.getPath("userData"));
@@ -105,6 +111,11 @@ app.on("will-quit", () => {
 });
 
 app.on("ready", () => {
+  if (renderRecipeTestArgs) {
+    void runRenderRecipeTest(renderRecipeTestArgs);
+    return;
+  }
+
   void ensureMediaServer().catch((error: unknown) => {
     console.error(
       `[media] server failed to start: ${error instanceof Error ? error.message : String(error)}`,
@@ -121,6 +132,10 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
+  if (renderRecipeTestArgs) {
+    return;
+  }
+
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }

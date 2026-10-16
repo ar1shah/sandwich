@@ -93,9 +93,9 @@ npm run probe -- <file> # print the ProbeResult for a video file
 npm run normalize -- <in> <out.mp4>  # normalize one clip (+ thumbnail and filmstrip next to it); add --tonemap-variants for HDR tuning
 npm run test:normalize # normalize every fixture and fixtures/real clip into out/normalized/ and assert the working-file spec (needs npm run fixtures first)
 npm run fixtures       # generate test media + fixtures/sample.recipe.json (cached; add -- --force to rebuild)
-npm run verify:spike -- <mp4...>  # step 0.4: spec + faststart + audio-window checks on spike renders (temporary, 1.5 supersedes)
-npm run render:sample  # render fixtures/sample.recipe.json to out/ (placeholder until step 0.4)
-npm run verify:render  # ffprobe asserts on a rendered file (placeholder until step 1.5)
+npm run render -- <recipe.json> <out.mp4> [--media-root <dir>]  # render a recipe with renderRecipe(); media root defaults to the recipe's folder; starts the media server itself
+npm run render:sample  # render fixtures/sample.recipe.json to out/sample.mp4
+npm run verify:render -- <file.mp4> [expectedSeconds] [--recipe <recipe.json>]  # spec, Rec.709 tags, faststart; with --recipe also per-clip audio and a colour fidelity check. Exits 1 on failure
 npm run make           # package the app (currently electron-forge package)
 ```
 
