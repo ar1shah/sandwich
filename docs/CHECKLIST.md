@@ -22,7 +22,7 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
   - [x] Decision logged: Remotion / FFmpeg fallback (keep Remotion, DECISIONS #14)
 
 ## Phase 1: Render engine
-- [ ] 1.1 Shared logic + recipe schema (90%+ coverage on src/shared)
+- [x] 1.1 Shared logic + recipe schema (90%+ coverage on src/shared)
 - [ ] 1.2 Import normalization (HDR tone map, rotation, CFR, thumbs, filmstrip)
   - [ ] You: real HDR clip vs normalized look the same side by side
 - [ ] 1.3 Media server (range requests, token, traversal-safe)

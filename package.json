@@ -11,6 +11,7 @@
     "studio": "remotion studio",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint . && tsc --noEmit",
     "format": "prettier --write .",
     "make": "electron-forge package",
@@ -57,6 +58,7 @@
     "@types/react-dom": "19.2.3",
     "@types/web": "0.0.166",
     "@vitejs/plugin-react": "4.3.4",
+    "@vitest/coverage-v8": "5.0.5",
     "electron": "40.10.2",
     "eslint": "9.39.5",
     "prettier": "3.8.1",
@@ -64,6 +66,6 @@
     "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "vite": "6.4.3",
-    "vitest": "^5.0.5"
+    "vitest": "5.0.5"
   }
 }

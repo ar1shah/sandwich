@@ -163,9 +163,9 @@ Drafts autosave (debounced) so a crash or accidental close loses nothing.
 
 Pattern: `{productSlug}_{hook}_{date}_{n}.mp4`
 
-- `hook` = slug of the first 4 words of the before caption, max 30 chars, `no-caption` if empty
+- `hook` = slug of the first 4 words of the before caption, max 30 chars, `no-caption` if empty. Words whose slug is 1 char or shorter ("I", "a", emoji-only) are skipped first, so the next 4 words are used (see DECISIONS #19)
 - `date` = local date `YYYY-MM-DD`
-- `n` = 2-digit counter, increments until the name is unused
+- `n` = 2-digit counter starting at 01, increments until the name is unused (goes to 100 and beyond rather than failing)
 - Folder: `<library>/exports/<productSlug>/<date>/`
 - Sidecar: same name with `.recipe.json`
 - Slugify: lowercase, ASCII only, `[a-z0-9-]`, collapse dashes, strip apostrophes (`can't` → `cant`)

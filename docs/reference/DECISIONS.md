@@ -162,3 +162,24 @@ The very first dev run was cold: `selectComposition` took 11.3 s and the total 4
 ## #17 2026-10-15: Partner's Mac (info, not blocking)
 We need the partner's chip (Intel vs Apple Silicon) and macOS version. Builds are arm64 only today, so an Intel Mac cannot run them (an x64 build needs its own compositor package and browser, packaged separately). The compositor's own ffmpeg artifact needs macOS 15 or later (#8). The unsigned app also triggers Gatekeeper on another machine (right-click Open, or `xattr -cr`). If the spike zip is sent to them, record chip, macOS version and result here.
 
+## #18 2026-10-16: Recipe schema details (step 1.1)
+- **Empty slots parse.** A draft recipe has slots with no media yet. A clip with `mediaPath === ""` skips the `trimStart + duration <= sourceDuration` check (only `mediaPath` decides this); it still needs `duration > 0`. `isRenderable` is the render gate: all three `mediaPath`s non-empty. Shape validity is `RecipeSchema`'s job, render readiness is `isRenderable`'s.
+- **Clip order is in the type.** `clips` is a `z.tuple` of three slot-literal clip schemas (before, after, broll), not a refinement, so TypeScript and zod agree.
+- **Float slack.** The trim check allows 1e-6 s so values like `0.1 + 0.2` at the end of a source do not fail.
+- **Purity.** `createEmptyRecipe` takes `{ id, now }` from the caller (`crypto.randomUUID()`, `new Date()`) so `src/shared` stays free of Node and DOM imports and tests are deterministic.
+- **Naming.** TypeScript shapes use camelCase (`productId`, `useCount`, `fullName`, `shortName`) even where SPEC tables show DB-style snake_case; the DB layer (step 2.1) maps columns.
+- **Tokens** match case-insensitively (`{Product}` works); unknown tokens stay as typed and are reported with braces, once each.
+
+## #19 2026-10-16: Export hook skips 1-char words
+**Context:** SPEC section 6 said the hook is "the first 4 words" of the before caption, but its own example (`I can't fix my smile lines, it's genetics` -> `cant-fix-my-smile`) drops the leading "I"; literal first-4-words would give `i-cant-fix-my`.
+**Decision:** Before taking 4 words, skip any word whose slug is 1 char or shorter ("I", "a", emoji-only or symbol-only words). Then slugify the 4 words joined by dashes, hard-cap at 30 chars (mid-word is fine), strip a trailing dash. Empty result -> `no-caption`. SPEC section 6 updated; the SPEC example is a literal test.
+**Revisit if:** Real captions produce unhelpful hooks (e.g. captions made only of short words collapse to `no-caption`).
+
+## #20 2026-10-16: `buildExportName` signature
+- `date` is a `Date` formatted with **local** getters (`formatLocalDate`), never `toISOString()` (UTC would roll to tomorrow in the evening).
+- It returns `folderSegments: ["exports", productSlug, dateStr]` (relative to the library root) instead of a joined string; main joins with `path.join` (golden rule 3).
+- `existingNames` is matched case-insensitively and counts both the `.mp4` and the `.recipe.json` as taken. The counter starts at 01 and continues past 99 (`_100`) rather than failing.
+
+## #21 2026-10-16: Coverage tooling and exact vitest pin
+`@vitest/coverage-v8` added as a devDependency, and `vitest` moved from `^5.0.5` to exact `5.0.5`, so the two cannot drift apart (their versions must match). Coverage is scoped to `src/shared/**` (`npm run test:coverage`, v8 provider, text + summary). This extends the exact-pin habit used for Remotion to the test toolchain.
+

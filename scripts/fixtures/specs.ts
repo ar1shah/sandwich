@@ -520,7 +520,8 @@ export function redFraction(rgb24: Uint8Array): number {
 // sample.recipe.json
 // ---------------------------------------------------------------------------
 
-// Local shape until src/shared/recipe.ts (zod) lands in step 1.1. Mirrors SPEC section 3.
+// Local shape that mirrors SPEC section 3. tests/recipe.test.ts parses buildSampleRecipe() with
+// RecipeSchema (src/shared/recipe.ts), so any drift from the real schema fails a test.
 export type SampleClip = {
   slot: "before" | "after" | "broll";
   mediaPath: string;
