@@ -208,7 +208,9 @@ describe("buildSampleRecipe", () => {
   it("covers the requested zoom, mute and caption variety", () => {
     const [before, after, broll] = recipe.clips;
     expect(before.zoom).toBe("slow-push");
-    expect(after.zoom).toBe("none");
+    expect(after.zoom).toBe("punch-in");
+    expect(after.focus).toEqual({ x: 0.3, y: 0.35 });
+    expect(before.focus).toEqual({ x: 0.5, y: 0.5 });
     expect(broll.muted).toBe(true);
     expect(before.caption?.text).not.toContain("\n");
     expect(after.caption?.text).toContain("\n");

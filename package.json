@@ -8,7 +8,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "electron-forge start",
-    "studio": "remotion studio",
+    "studio": "tsx scripts/studio.ts",
+    "frames": "tsx scripts/render-frames.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
