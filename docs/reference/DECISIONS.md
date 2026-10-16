@@ -170,9 +170,9 @@ We need the partner's chip (Intel vs Apple Silicon) and macOS version. Builds ar
 - **Naming.** TypeScript shapes use camelCase (`productId`, `useCount`, `fullName`, `shortName`) even where SPEC tables show DB-style snake_case; the DB layer (step 2.1) maps columns.
 - **Tokens** match case-insensitively (`{Product}` works); unknown tokens stay as typed and are reported with braces, once each.
 
-## #19 2026-10-16: Export hook skips 1-char words
+## #19 2026-10-16: Export hook skips single-letter words
 **Context:** SPEC section 6 said the hook is "the first 4 words" of the before caption, but its own example (`I can't fix my smile lines, it's genetics` -> `cant-fix-my-smile`) drops the leading "I"; literal first-4-words would give `i-cant-fix-my`.
-**Decision:** Before taking 4 words, skip any word whose slug is 1 char or shorter ("I", "a", emoji-only or symbol-only words). Then slugify the 4 words joined by dashes, hard-cap at 30 chars (mid-word is fine), strip a trailing dash. Empty result -> `no-caption`. SPEC section 6 updated; the SPEC example is a literal test.
+**Decision:** Before taking 4 words, skip single-letter words ("I", "a") and words with no letters or digits (emoji-only or symbol-only). Single digits are kept, so "3 weeks into using this" gives `3-weeks-into-using`. Then slugify the 4 words joined by dashes, hard-cap at 30 chars (mid-word is fine), strip a trailing dash. Empty result -> `no-caption`. SPEC section 6 updated; the SPEC example is a literal test.
 **Revisit if:** Real captions produce unhelpful hooks (e.g. captions made only of short words collapse to `no-caption`).
 
 ## #20 2026-10-16: `buildExportName` signature

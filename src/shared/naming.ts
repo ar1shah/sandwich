@@ -2,8 +2,9 @@ import { slugify } from "./slug";
 
 // Export naming (docs/reference/SPEC.md section 6):
 //   {productSlug}_{hook}_{date}_{n}.mp4  in  exports/<productSlug>/<date>/
-// The hook is built from the before caption: words whose slug is 1 char or shorter ("I", "a",
-// emoji-only) are skipped, the next 4 words are slugified and capped at 30 chars.
+// The hook is built from the before caption: single-letter words ("I", "a") and emoji-only or
+// symbol-only words are skipped (single digits like "3" are kept), then the next 4 words are
+// slugified and capped at 30 chars.
 
 export const HOOK_WORD_COUNT = 4;
 export const HOOK_MAX_LENGTH = 30;
@@ -22,7 +23,7 @@ export function buildHook(caption: string): string {
   const words = caption
     .split(/\s+/)
     .map((word) => slugify(word, { fallback: "" }))
-    .filter((word) => word.length > 1)
+    .filter((word) => word.length > 1 || /^[0-9]$/.test(word))
     .slice(0, HOOK_WORD_COUNT);
   const hook = slugify(words.join("-"), {
     maxLength: HOOK_MAX_LENGTH,

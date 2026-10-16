@@ -41,13 +41,18 @@ describe("formatLocalDate", () => {
 });
 
 describe("buildHook", () => {
-  it("skips 1-char words and takes the next 4", () => {
+  it("skips single-letter words and takes the next 4", () => {
     expect(buildHook("I can't fix my smile lines, it's genetics")).toBe(
       "cant-fix-my-smile",
     );
     expect(buildHook("a b the best serum ever made")).toBe(
       "the-best-serum-ever",
     );
+  });
+
+  it("keeps single digits", () => {
+    expect(buildHook("3 weeks into using this")).toBe("3-weeks-into-using");
+    expect(buildHook("I tried this for 5 days")).toBe("tried-this-for-5");
   });
 
   it("skips emoji-only and symbol-only words", () => {

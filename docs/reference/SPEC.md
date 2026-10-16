@@ -163,7 +163,7 @@ Drafts autosave (debounced) so a crash or accidental close loses nothing.
 
 Pattern: `{productSlug}_{hook}_{date}_{n}.mp4`
 
-- `hook` = slug of the first 4 words of the before caption, max 30 chars, `no-caption` if empty. Words whose slug is 1 char or shorter ("I", "a", emoji-only) are skipped first, so the next 4 words are used (see DECISIONS #19)
+- `hook` = slug of the first 4 words of the before caption, max 30 chars, `no-caption` if empty. Single-letter words ("I", "a") and emoji-only words are skipped first (single digits like "3" are kept), so the next 4 words are used (see DECISIONS #19)
 - `date` = local date `YYYY-MM-DD`
 - `n` = 2-digit counter starting at 01, increments until the name is unused (goes to 100 and beyond rather than failing)
 - Folder: `<library>/exports/<productSlug>/<date>/`
