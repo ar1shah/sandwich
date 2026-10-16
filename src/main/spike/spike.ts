@@ -15,7 +15,7 @@ import {
   type SpikeResult,
 } from "../../shared/spikeProps";
 import { renderVideo } from "../render/render-video";
-import { startSpikeMediaServer } from "./mediaServer";
+import { startMediaServer } from "../media/mediaServer";
 
 declare const __REMOTION_VERSION__: string;
 
@@ -87,17 +87,20 @@ export async function runSpike({
   ): void => onProgress?.({ mode, stage, message, percent });
 
   let result: SpikeResult = base;
-  const server = await startSpikeMediaServer(getSpikeMediaDir());
+  // The spike keeps its own server instance (root = the staged spike media), separate
+  // from the app-wide one, so integration-render-test-mode works without a window.
+  const server = await startMediaServer({ getRoot: getSpikeMediaDir });
   try {
     await mkdir(path.dirname(outputPath), { recursive: true });
-    emit("status", `Media server on ${server.origin}`, null);
+    // Port only: the base URL contains the session token.
+    emit("status", `Media server on port ${server.port}`, null);
 
     const rendered = await renderVideo({
       isPackaged: app.isPackaged,
       outputPath,
       projectRoot: app.getAppPath(),
       compositionId: SPIKE_COMPOSITION_ID,
-      inputProps: buildSpikeProps(server.origin),
+      inputProps: buildSpikeProps(server.baseUrl),
       hardwareAcceleration: config.hardwareAcceleration,
       videoBitrate: config.videoBitrate,
       logLevel: "verbose",

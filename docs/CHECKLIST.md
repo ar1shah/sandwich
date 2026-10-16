@@ -25,9 +25,11 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 1.1 Shared logic + recipe schema (90%+ coverage on src/shared)
 - [x] 1.2 Import normalization (HDR tone map, rotation, CFR, thumbs, filmstrip)
   - [x] You: real HDR clip vs normalized look the same side by side
-- [ ] 1.3 Media server (range requests, token, traversal-safe)
+- [x] 1.3 Media server (range requests, token, traversal-safe)
+  - [ ] You: media URL plays and scrubs in Chrome; wrong token gives 403
+  - [ ] You: packaged .app (npm run make, open from Finder) still renders the spike
 - [ ] 1.4 SandwichVideo composition (trim, zoom, captions, safe zone)
-  - [ ] Cleanup: remove spike media server (1.3), Spike composition, spike IPC, and Settings spike section
+  - [ ] Cleanup: remove Spike composition, spike IPC, and Settings spike section (spike media server already removed in 1.3, spike.ts now uses the real server)
   - [ ] You: Studio scrub looks right, captions in safe zone
 - [ ] 1.5 Render CLI + verify script
   - [ ] You: real-clip render watched on phone

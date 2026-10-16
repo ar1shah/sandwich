@@ -3,6 +3,7 @@ import path from "node:path";
 import { formatCapabilityReport } from "../shared/capabilitiesParse";
 import {
   APP_VERSION_CHANNEL,
+  LIBRARY_MEDIA_BASE_URL_CHANNEL,
   SPIKE_PROGRESS_CHANNEL,
   SPIKE_RENDER_CHANNEL,
 } from "../shared/ipc";
@@ -13,6 +14,7 @@ import {
 } from "./integration-render-test-mode";
 import { resolveFfPaths } from "./media/binaries";
 import { getFfCapabilities } from "./media/capabilities";
+import { startMediaServer, type MediaServer } from "./media/mediaServer";
 import { runSpike } from "./spike/spike";
 
 let mainWindow: BrowserWindow | null = null;
@@ -78,6 +80,39 @@ ipcMain.handle(APP_VERSION_CHANNEL, (event: IpcMainInvokeEvent) => {
   return app.getVersion();
 });
 
+// App-wide media server. Dev serves fixtures/; packaged builds have no library root
+// until step 2.1, so requests get 503. 2.1 only changes what getRoot returns.
+function getLibraryRoot(): string | null {
+  return app.isPackaged ? null : path.join(app.getAppPath(), "fixtures");
+}
+
+let mediaServerPromise: Promise<MediaServer> | null = null;
+let mediaServer: MediaServer | null = null;
+
+function ensureMediaServer(): Promise<MediaServer> {
+  mediaServerPromise ??= startMediaServer({ getRoot: getLibraryRoot }).then(
+    (server) => {
+      mediaServer = server;
+      // Port only: the base URL contains the session token.
+      console.log(`[media] server listening on port ${server.port}`);
+      return server;
+    },
+  );
+  return mediaServerPromise;
+}
+
+ipcMain.handle(
+  LIBRARY_MEDIA_BASE_URL_CHANNEL,
+  async (event: IpcMainInvokeEvent) => {
+    assertTrustedSender(event);
+    return (await ensureMediaServer()).baseUrl;
+  },
+);
+
+app.on("will-quit", () => {
+  void mediaServer?.close();
+});
+
 let spikeRunning = false;
 
 // Step 0.4 spike: renders the Spike composition in the main process and streams progress.
@@ -111,6 +146,11 @@ app.on("ready", () => {
     return;
   }
 
+  void ensureMediaServer().catch((error: unknown) => {
+    console.error(
+      `[media] server failed to start: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
   createWindow();
   void logFfCapabilities();
 });

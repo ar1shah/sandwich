@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import {
   APP_VERSION_CHANNEL,
+  LIBRARY_MEDIA_BASE_URL_CHANNEL,
   SPIKE_PROGRESS_CHANNEL,
   SPIKE_RENDER_CHANNEL,
   type SandwichApi,
@@ -10,6 +11,10 @@ import type { SpikeProgress, SpikeResult } from "../shared/spikeProps";
 const api: SandwichApi = {
   app: {
     version: () => ipcRenderer.invoke(APP_VERSION_CHANNEL) as Promise<string>,
+  },
+  library: {
+    mediaBaseUrl: () =>
+      ipcRenderer.invoke(LIBRARY_MEDIA_BASE_URL_CHANNEL) as Promise<string>,
   },
   spike: {
     render: (request) =>
