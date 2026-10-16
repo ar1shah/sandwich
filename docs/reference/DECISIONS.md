@@ -143,7 +143,7 @@ The very first dev run was cold: `selectComposition` took 11.3 s and the total 4
 **Spec check (all six files):** 1080x1920, r/avg frame rate 30/1, h264 High, yuv420p, AAC 48 kHz stereo, video 12.000 s, audio 12.011 s (within 1 frame), `ftyp > moov > free > mdat` so **faststart is already on by default**, before/after windows audible (max about -4.4 dB) and broll window silent (max -91 dB). No spec deviations to fix in 1.5. Re-render is deterministic: dev and packaged outputs have identical byte sizes.
 **Hardware acceleration:** `hardwareAcceleration: "required"` works on this machine through `h264_videotoolbox` (confirmed by Remotion's verbose log and by the file lacking the "x264 - core" SEI). It is not faster here: frame capture in headless Chrome dominates a 12 s render, so hw vs sw at the same 8M bitrate differs by under 0.7 s. CRF cannot be used with it (bitrate only). Decision: keep software x264 (CRF) as the default export path for quality per byte; revisit hardware only if renders of long videos become encode-bound.
 **Decision:** Keep the Remotion renderer. The FFmpeg-only fallback in ARCHITECTURE section 7 is not needed.
-**Not yet verified:** a Finder launch click-through (human check) and the partner's Mac (#17).
+**Finder launch:** verified by the human check on 2026-10-15: launched `Sandwich.app` from Finder, clicked Render spike (software mode), got `sandwich-spike-sw.mp4` (`packaged: true`), which passes `verify:spike` and plays. **Not yet verified:** the partner's Mac (#17).
 **Revisit if:** A newer Remotion or Electron pin changes packaging, or the app gets signed/notarized (the browser and compositor binaries will need signing).
 
 ## #15 2026-10-15: Package the headless browser by default

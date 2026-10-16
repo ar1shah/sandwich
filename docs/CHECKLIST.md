@@ -17,9 +17,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
   - [x] You: real iPhone clip probes as HDR with recordedAt
 - [x] 0.3 Fixture generator + sample.recipe.json
   - [x] You: real clips added to `fixtures/real/`
-- [~] 0.4 Packaged render spike (dev + packaged scripted renders pass, see DECISIONS #14; Finder click-through pending)
-  - [ ] You: packaged .app renders from Finder launch
-  - [ ] Decision logged: Remotion / FFmpeg fallback
+- [x] 0.4 Packaged render spike (see DECISIONS #14)
+  - [x] You: packaged .app renders from Finder launch
+  - [x] Decision logged: Remotion / FFmpeg fallback (keep Remotion, DECISIONS #14)
 
 ## Phase 1: Render engine
 - [ ] 1.1 Shared logic + recipe schema (90%+ coverage on src/shared)
