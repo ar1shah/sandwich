@@ -32,8 +32,8 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
   - [x] Cleanup: remove Spike composition, spike IPC, and Settings spike section (spike media server already removed in 1.3, spike.ts now uses the real server)
   - [x] You: Studio scrub looks right, captions in safe zone
 - [x] 1.5 Render CLI + verify script
-  - [ ] You: real-clip render watched on phone
-- [ ] **Phase 1 exit test**
+  - [x] You: real-clip render watched on phone
+- [x] **Phase 1 exit test**
 
 ## Phase 2: Library
 - [ ] 2.1 Library folder + SQLite + migrations (works in packaged app)
