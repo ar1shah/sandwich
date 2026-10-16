@@ -20,9 +20,8 @@ import {
   hasPrebuiltRemotionBundle,
 } from "./remotion-bundle";
 import { getPackagedBrowserPaths } from "./packaged-browser";
-import type { HelloWorldProps } from "../../../remotion/types";
 
-const compositionId = "HelloWorld";
+export type RenderHardwareAcceleration = "disable" | "if-possible" | "required";
 
 function isRenderCancelledError(error: unknown): boolean {
   return error instanceof Error && error.message === RENDER_CANCELLED_MESSAGE;
@@ -60,7 +59,7 @@ async function getServeUrl({
   isPackaged: boolean;
   projectRoot: string;
   onUpdate?: (update: RenderUpdate) => void;
-}): Promise<string> {
+}): Promise<{ serveUrl: string; bundleMs: number | null }> {
   if (isPackaged) {
     if (!hasPrebuiltRemotionBundle(projectRoot)) {
       throw new Error(
@@ -73,7 +72,10 @@ async function getServeUrl({
       message: "Using the prebuilt Remotion bundle from the packaged app...",
     });
 
-    return getPrebuiltRemotionBundlePath(projectRoot);
+    return {
+      serveUrl: getPrebuiltRemotionBundlePath(projectRoot),
+      bundleMs: null,
+    };
   }
 
   onUpdate?.({
@@ -81,24 +83,71 @@ async function getServeUrl({
     message: "Bundling the Remotion project for development...",
   });
 
-  return bundleRemotionProject({
+  const started = performance.now();
+  const serveUrl = await bundleRemotionProject({
     projectRoot,
     onUpdate,
   });
+  return { serveUrl, bundleMs: performance.now() - started };
+}
+
+// Remotion prints the encoder it picked through console.log at "verbose" log level.
+// Tap the console for the duration of a render so the choice can be recorded.
+const ENCODER_PATTERN =
+  /\b(h264_videotoolbox|hevc_videotoolbox|prores_videotoolbox|h264_nvenc|libx264|libx265|prores_ks)\b/;
+const TAPPED_METHODS = ["log", "info", "warn", "error", "debug"] as const;
+
+function tapConsole(): { stop: () => string[] } {
+  const lines: string[] = [];
+  const originals = TAPPED_METHODS.map((method) => console[method]);
+
+  TAPPED_METHODS.forEach((method, index) => {
+    const original = originals[index];
+    console[method] = (...args: unknown[]) => {
+      const text = args
+        .map((arg) => (typeof arg === "string" ? arg : String(arg)))
+        .join(" ");
+      if (ENCODER_PATTERN.test(text)) {
+        lines.push(text.slice(0, 400));
+      }
+      original?.apply(console, args);
+    };
+  });
+
+  return {
+    stop: () => {
+      TAPPED_METHODS.forEach((method, index) => {
+        const original = originals[index];
+        if (original) {
+          console[method] = original;
+        }
+      });
+      return lines;
+    },
+  };
 }
 
 export const renderVideo = async ({
   isPackaged,
   outputPath,
   projectRoot,
-  titleText,
+  compositionId,
+  inputProps,
+  hardwareAcceleration = "disable",
+  videoBitrate = null,
+  logLevel = "info",
   onUpdate,
   cancelSignal,
 }: {
   isPackaged: boolean;
   outputPath: string;
   projectRoot: string;
-  titleText: string;
+  compositionId: string;
+  inputProps: Record<string, unknown>;
+  hardwareAcceleration?: RenderHardwareAcceleration;
+  // e.g. "8M". Hardware encoders cannot use CRF, so they need a bitrate.
+  videoBitrate?: string | null;
+  logLevel?: "verbose" | "info" | "warn" | "error";
   onUpdate?: (update: RenderUpdate) => void;
   cancelSignal?: CancelSignal;
 }): Promise<RenderResult> => {
@@ -123,9 +172,9 @@ export const renderVideo = async ({
     wasCancelled = true;
   });
 
-  const inputProps: HelloWorldProps = {
-    titleText: titleText.trim() || "Hello from Electron",
-  };
+  const totalStarted = performance.now();
+  const tap = logLevel === "verbose" ? tapConsole() : null;
+  let encoderLines: string[] = [];
 
   try {
     onUpdate?.({
@@ -164,7 +213,7 @@ export const renderVideo = async ({
       return finishCancelledRender();
     }
 
-    const serveUrl = await getServeUrl({
+    const { serveUrl, bundleMs } = await getServeUrl({
       isPackaged,
       projectRoot,
       onUpdate,
@@ -179,13 +228,16 @@ export const renderVideo = async ({
       projectRoot,
     });
 
+    const selectStarted = performance.now();
     const composition = await selectComposition({
       serveUrl,
       id: compositionId,
       inputProps,
       binariesDirectory,
       browserExecutable,
+      logLevel,
     });
+    const selectMs = performance.now() - selectStarted;
 
     if (wasCancelled) {
       return finishCancelledRender();
@@ -196,6 +248,8 @@ export const renderVideo = async ({
       message: "Rendering video...",
     });
 
+    let concurrency: number | null = null;
+    const renderStarted = performance.now();
     await renderMedia({
       composition,
       serveUrl,
@@ -205,6 +259,15 @@ export const renderVideo = async ({
       binariesDirectory,
       browserExecutable,
       cancelSignal,
+      logLevel,
+      hardwareAcceleration,
+      ...(videoBitrate ? { videoBitrate } : {}),
+      audioCodec: "aac",
+      sampleRate: 48000,
+      overwrite: true,
+      onStart: ({ resolvedConcurrency }) => {
+        concurrency = resolvedConcurrency;
+      },
       onProgress(progress: RenderMediaProgress) {
         onUpdate?.({
           type: "progress",
@@ -213,14 +276,30 @@ export const renderVideo = async ({
         });
       },
     });
+    const renderMs = performance.now() - renderStarted;
+
+    encoderLines = tap?.stop() ?? [];
 
     if (wasCancelled) {
       return finishCancelledRender();
     }
 
+    const encoder = encoderLines
+      .map((line) => ENCODER_PATTERN.exec(line)?.[1] ?? null)
+      .find((name) => name !== null);
+
     return {
       cancelled: false,
       outputPath,
+      timings: {
+        bundleMs,
+        selectMs,
+        renderMs,
+        totalMs: performance.now() - totalStarted,
+      },
+      concurrency,
+      encoder: encoder ?? null,
+      encoderLogLines: encoderLines.slice(0, 8),
     };
   } catch (error) {
     if (wasCancelled || isRenderCancelledError(error)) {
@@ -228,5 +307,7 @@ export const renderVideo = async ({
     }
 
     throw error;
+  } finally {
+    tap?.stop();
   }
 };
