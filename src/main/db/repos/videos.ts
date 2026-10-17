@@ -35,6 +35,13 @@ export type VideoInput = {
   batchId?: string | null;
 };
 
+export type DraftUpsert = {
+  // The recipe id: a draft is addressed by it from the first save.
+  id: string;
+  productId: string;
+  recipeJson: string;
+};
+
 export type VideoPatch = {
   recipeJson?: string;
   status?: VideoStatus;
@@ -83,6 +90,24 @@ export function createVideosRepo(db: Db, deps: RepoDeps) {
       return require(id);
     },
     get,
+    // One statement: insert the draft, or update it when the id exists AND it is still a
+    // draft. Keeps created_at and product_id on update. null = the id belongs to a video
+    // that is not a draft, which is never overwritten.
+    upsertDraft(input: DraftUpsert): Video | null {
+      const now = deps.now();
+      const changes = db
+        .prepare(
+          `INSERT INTO videos
+             (id, product_id, status, recipe_json, created_at, updated_at)
+           VALUES (?, ?, 'draft', ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             recipe_json = excluded.recipe_json,
+             updated_at = excluded.updated_at
+           WHERE videos.status = 'draft'`,
+        )
+        .run(input.id, input.productId, input.recipeJson, now, now).changes;
+      return changes > 0 ? require(input.id) : null;
+    },
     list({ productId, status }: VideoListOptions = {}): Video[] {
       const where: string[] = [];
       const params: string[] = [];

@@ -2,7 +2,7 @@ import { Modal } from "../../components/Modal";
 import { formatDuration } from "../../../shared/formatDuration";
 import type { Media } from "../../../shared/library";
 import { brollTileLabel } from "./BrollTile";
-import { brollVideoUrl } from "./brollUrls";
+import { mediaVideoUrl } from "../media/mediaUrls";
 
 // The larger preview. object-contain so a horizontal clip is shown whole; the tile crops it
 // to 9:16 like the finished video will.
@@ -11,7 +11,7 @@ export const BrollPreviewModal: React.FC<{
   mediaBase: string | null;
   onClose: () => void;
 }> = ({ media, mediaBase, onClose }) => {
-  const video = brollVideoUrl(mediaBase, media);
+  const video = mediaVideoUrl(mediaBase, media);
   return (
     <Modal
       title={brollTileLabel(media)}

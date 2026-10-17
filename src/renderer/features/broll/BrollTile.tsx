@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatDuration } from "../../../shared/formatDuration";
 import type { Media } from "../../../shared/library";
-import { brollThumbUrl, brollVideoUrl } from "./brollUrls";
+import { mediaThumbUrl, mediaVideoUrl } from "../media/mediaUrls";
 
 // Wait this long before loading the preview, so sweeping the mouse across the grid does not
 // start a decoder per tile.
@@ -33,8 +33,8 @@ export const BrollTile: React.FC<BrollTileProps> = ({
   const [hovered, setHovered] = useState(false);
   const [wanted, setWanted] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const thumb = brollThumbUrl(mediaBase, media);
-  const video = brollVideoUrl(mediaBase, media);
+  const thumb = mediaThumbUrl(mediaBase, media);
+  const video = mediaVideoUrl(mediaBase, media);
   const preview = hovered || option?.active === true;
 
   useEffect(() => {

@@ -1,3 +1,5 @@
+import { NewVideoPage } from "../editor/NewVideoPage";
+import { HistoryPage } from "../history/HistoryPage";
 import { CaptionsPage } from "../captions/CaptionsPage";
 import { ProductDetailPage } from "../products/ProductDetailPage";
 import { ProductsPage } from "../products/ProductsPage";
@@ -20,6 +22,8 @@ export const PageView: React.FC = () => {
       {detail && <ProductDetailPage productId={selectedProductId} />}
       {page === "products" && !detail && <ProductsPage />}
       {page === "captions" && <CaptionsPage />}
+      {page === "new-video" && <NewVideoPage />}
+      {page === "history" && <HistoryPage />}
       {page === "settings" && <SettingsPage />}
     </main>
   );

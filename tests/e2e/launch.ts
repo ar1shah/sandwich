@@ -36,15 +36,22 @@ export type LaunchedApp = {
 // Starts the packaged app with a throwaway userData folder, so it never touches the real
 // settings or library. The native folder dialog is replaced in the main process so the
 // welcome flow can pick `libraryDir` (an empty temp folder).
-export async function launchPackagedApp(): Promise<LaunchedApp> {
+// Pass the dirs of an earlier launch to start the same app again, as after a quit: the
+// library saved in settings.json opens straight away.
+export async function launchPackagedApp(
+  again?: Pick<LaunchedApp, "userDataDir" | "libraryDir">,
+): Promise<LaunchedApp> {
   const executablePath = packagedExecutable();
   if (!existsSync(executablePath)) {
     throw new Error(
       `No packaged app at ${executablePath}. Run "npm run make" first (it runs electron-forge package).`,
     );
   }
-  const userDataDir = mkdtempSync(path.join(tmpdir(), "sandwich-e2e-user-"));
-  const libraryDir = mkdtempSync(path.join(tmpdir(), "sandwich-e2e-lib-"));
+  const userDataDir =
+    again?.userDataDir ??
+    mkdtempSync(path.join(tmpdir(), "sandwich-e2e-user-"));
+  const libraryDir =
+    again?.libraryDir ?? mkdtempSync(path.join(tmpdir(), "sandwich-e2e-lib-"));
   const app = await electron.launch({
     executablePath,
     env: { ...process.env, SANDWICH_USER_DATA: userDataDir },
