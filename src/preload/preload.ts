@@ -6,13 +6,24 @@ import {
 } from "electron";
 import type { BrollResult } from "../shared/broll";
 import type { JobEvent, JobInfo } from "../shared/jobs";
-import type { LibraryCandidate, LibraryState, Media } from "../shared/library";
+import type {
+  Caption,
+  LibraryCandidate,
+  LibraryState,
+  Media,
+} from "../shared/library";
+import type { CaptionResult } from "../shared/captions";
 import type { ProductResult, ProductSummary } from "../shared/products";
 import {
   APP_VERSION_CHANNEL,
   BROLL_IMPORT_CHANNEL,
   BROLL_LIST_CHANNEL,
   BROLL_REMOVE_CHANNEL,
+  CAPTIONS_BULK_ADD_CHANNEL,
+  CAPTIONS_CREATE_CHANNEL,
+  CAPTIONS_LIST_CHANNEL,
+  CAPTIONS_REMOVE_CHANNEL,
+  CAPTIONS_UPDATE_CHANNEL,
   DEV_IMPORT_FIXTURES_CHANNEL,
   JOB_EVENT_CHANNEL,
   JOBS_CANCEL_CHANNEL,
@@ -108,6 +119,25 @@ const api: SandwichApi = {
     touchLastUsed: (id) =>
       ipcRenderer.invoke(PRODUCTS_TOUCH_CHANNEL, id) as Promise<
         ProductResult<ProductSummary>
+      >,
+  },
+  captions: {
+    list: () => ipcRenderer.invoke(CAPTIONS_LIST_CHANNEL) as Promise<Caption[]>,
+    create: (input) =>
+      ipcRenderer.invoke(CAPTIONS_CREATE_CHANNEL, input) as Promise<
+        CaptionResult<Caption>
+      >,
+    update: (input) =>
+      ipcRenderer.invoke(CAPTIONS_UPDATE_CHANNEL, input) as Promise<
+        CaptionResult<Caption>
+      >,
+    remove: (id) =>
+      ipcRenderer.invoke(CAPTIONS_REMOVE_CHANNEL, id) as Promise<
+        CaptionResult<true>
+      >,
+    bulkAdd: (input) =>
+      ipcRenderer.invoke(CAPTIONS_BULK_ADD_CHANNEL, input) as Promise<
+        CaptionResult<Caption[]>
       >,
   },
   dev: {

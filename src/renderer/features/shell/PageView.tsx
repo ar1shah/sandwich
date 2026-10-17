@@ -1,3 +1,4 @@
+import { CaptionsPage } from "../captions/CaptionsPage";
 import { ProductDetailPage } from "../products/ProductDetailPage";
 import { ProductsPage } from "../products/ProductsPage";
 import { SettingsPage } from "../settings/SettingsPage";
@@ -18,6 +19,7 @@ export const PageView: React.FC = () => {
       )}
       {detail && <ProductDetailPage productId={selectedProductId} />}
       {page === "products" && !detail && <ProductsPage />}
+      {page === "captions" && <CaptionsPage />}
       {page === "settings" && <SettingsPage />}
     </main>
   );

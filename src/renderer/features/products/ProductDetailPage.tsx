@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BrollPicker } from "../broll/BrollPicker";
 import { BrollSection } from "../broll/BrollSection";
 import { watchBrollImports } from "../broll/brollStore";
+import { ProductCaptionsSection } from "../captions/ProductCaptionsSection";
 import { useNavStore } from "../shell/navStore";
 import { ProductFormModal } from "./ProductFormModal";
 import { productImageUrl } from "./productImageUrl";
@@ -21,6 +22,7 @@ export const ProductDetailPage: React.FC<{ productId: string }> = ({
   // Dev only: lets you try the picker before the editor uses it (step 3.1).
   const [pickerOpen, setPickerOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const [tab, setTab] = useState<"broll" | "captions">("broll");
 
   const product = products.find((p) => p.id === productId);
   const archived = product?.archivedAt != null;
@@ -103,7 +105,39 @@ export const ProductDetailPage: React.FC<{ productId: string }> = ({
         <p className="mt-2 text-xs text-app-dim">Picker returned: {picked}</p>
       )}
 
-      <BrollSection productId={productId} mediaBase={mediaBase} />
+      <div
+        role="tablist"
+        aria-label="Product content"
+        className="mt-8 flex gap-1 border-b border-edge"
+      >
+        {(
+          [
+            ["broll", "B-roll"],
+            ["captions", "Captions"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={
+              "-mb-px border-b-2 px-4 py-2 text-sm transition-colors " +
+              (tab === id
+                ? "border-brand text-app-text"
+                : "border-transparent text-app-muted hover:text-app-text")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "broll" ? (
+        <BrollSection productId={productId} mediaBase={mediaBase} />
+      ) : (
+        <ProductCaptionsSection productId={productId} />
+      )}
 
       {editing && (
         <ProductFormModal
