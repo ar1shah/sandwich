@@ -39,3 +39,13 @@ export function brollPaths(productId: string, brollId: string): MediaFilePaths {
     filmstrip: `cache/filmstrips/${brollId}.jpg`,
   };
 }
+
+// The photo shown on a product card (ARCHITECTURE section 3). Always this one name: an
+// edit replaces the file, and the renderer cache-busts with the row's updated_at.
+export function productImagePath(productId: string): string {
+  return `products/${productId}/image.jpg`;
+}
+
+export function productDir(productId: string): string {
+  return `products/${productId}`;
+}

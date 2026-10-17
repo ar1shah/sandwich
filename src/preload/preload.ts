@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { JobEvent, JobInfo } from "../shared/jobs";
 import type { LibraryCandidate, LibraryState } from "../shared/library";
+import type { ProductResult, ProductSummary } from "../shared/products";
 import {
   APP_VERSION_CHANNEL,
   DEV_IMPORT_FIXTURES_CHANNEL,
@@ -8,6 +9,12 @@ import {
   JOBS_CANCEL_CHANNEL,
   JOBS_LIST_CHANNEL,
   MEDIA_IMPORT_UGC_CHANNEL,
+  PRODUCTS_ARCHIVE_CHANNEL,
+  PRODUCTS_CREATE_CHANNEL,
+  PRODUCTS_LIST_CHANNEL,
+  PRODUCTS_REMOVE_CHANNEL,
+  PRODUCTS_TOUCH_CHANNEL,
+  PRODUCTS_UPDATE_CHANNEL,
   LIBRARY_ACTIVATE_CHANNEL,
   LIBRARY_CHOOSE_CHANNEL,
   LIBRARY_GET_CHANNEL,
@@ -52,6 +59,30 @@ const api: SandwichApi = {
     importUgc: (filePaths) =>
       ipcRenderer.invoke(MEDIA_IMPORT_UGC_CHANNEL, filePaths) as Promise<
         string[]
+      >,
+  },
+  products: {
+    list: () =>
+      ipcRenderer.invoke(PRODUCTS_LIST_CHANNEL) as Promise<ProductSummary[]>,
+    create: (input) =>
+      ipcRenderer.invoke(PRODUCTS_CREATE_CHANNEL, input) as Promise<
+        ProductResult<ProductSummary>
+      >,
+    update: (input) =>
+      ipcRenderer.invoke(PRODUCTS_UPDATE_CHANNEL, input) as Promise<
+        ProductResult<ProductSummary>
+      >,
+    remove: (id) =>
+      ipcRenderer.invoke(PRODUCTS_REMOVE_CHANNEL, id) as Promise<
+        ProductResult<true>
+      >,
+    archive: (id) =>
+      ipcRenderer.invoke(PRODUCTS_ARCHIVE_CHANNEL, id) as Promise<
+        ProductResult<ProductSummary>
+      >,
+    touchLastUsed: (id) =>
+      ipcRenderer.invoke(PRODUCTS_TOUCH_CHANNEL, id) as Promise<
+        ProductResult<ProductSummary>
       >,
   },
   dev: {

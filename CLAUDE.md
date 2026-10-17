@@ -83,6 +83,7 @@ npm run dev            # start app in dev mode (electron-forge start; needs a re
 npm test               # vitest run
 npm run test:watch     # vitest in watch mode
 npm run test:coverage  # vitest with v8 coverage for src/shared
+npm run test:e2e       # Playwright (Electron) smoke tests against the packaged app; run npm run make first
 npm run lint           # eslint + tsc --noEmit
 npm run format         # prettier --write
 npm run studio         # Remotion Studio on the Sandwich composition with fixtures/sample.recipe.json (starts the media server; needs npm run fixtures first)

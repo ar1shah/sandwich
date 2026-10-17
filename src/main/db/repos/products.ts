@@ -1,4 +1,5 @@
 import type { Product } from "../../../shared/library";
+import type { ProductSummary } from "../../../shared/products";
 import type { Db } from "../connection";
 import {
   NotFoundError,
@@ -39,6 +40,8 @@ function toProduct(row: ProductRow): Product {
 }
 
 export type ProductInput = {
+  // Defaults to a new id. Pass one when the product folder is built before the insert.
+  id?: string;
   fullName: string;
   shortName?: string | null;
   slug: string;
@@ -70,7 +73,7 @@ export function createProductsRepo(db: Db, deps: RepoDeps) {
   }
 
   function create(input: ProductInput): Product {
-    const id = deps.newId();
+    const id = input.id ?? deps.newId();
     const now = deps.now();
     try {
       db.prepare(
@@ -151,6 +154,41 @@ export function createProductsRepo(db: Db, deps: RepoDeps) {
     return rows.map(toProduct);
   }
 
+  type CountRow = { broll: number; captions: number; videos: number };
+
+  const COUNTS_SQL = `
+    (SELECT COUNT(*) FROM media WHERE media.product_id = p.id AND media.kind = 'broll') AS broll,
+    (SELECT COUNT(*) FROM captions WHERE captions.product_id = p.id) AS captions,
+    (SELECT COUNT(*) FROM videos WHERE videos.product_id = p.id) AS videos`;
+
+  function toSummary(row: ProductRow & CountRow): ProductSummary {
+    return {
+      ...toProduct(row),
+      brollCount: row.broll,
+      captionCount: row.captions,
+      videoCount: row.videos,
+    };
+  }
+
+  // Every product, archived included, with what deleting it would take along. The UI
+  // filters archived ones out but needs their slugs for the uniqueness check.
+  function listSummaries(): ProductSummary[] {
+    const rows = db
+      .prepare(
+        `SELECT p.*, ${COUNTS_SQL} FROM products p
+          ORDER BY p.last_used_at IS NULL, p.last_used_at DESC, p.full_name COLLATE NOCASE`,
+      )
+      .all() as (ProductRow & CountRow)[];
+    return rows.map(toSummary);
+  }
+
+  function getSummary(id: string): ProductSummary | null {
+    const row = db
+      .prepare(`SELECT p.*, ${COUNTS_SQL} FROM products p WHERE p.id = ?`)
+      .get(id) as (ProductRow & CountRow) | undefined;
+    return row ? toSummary(row) : null;
+  }
+
   function setArchived(id: string, archivedAt: string | null): Product {
     require(id);
     db.prepare(
@@ -169,6 +207,8 @@ export function createProductsRepo(db: Db, deps: RepoDeps) {
       return row ? toProduct(row) : null;
     },
     list,
+    listSummaries,
+    getSummary,
     update,
     archive: (id: string) => setArchived(id, deps.now()),
     unarchive: (id: string) => setArchived(id, null),
