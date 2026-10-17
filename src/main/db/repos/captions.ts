@@ -67,6 +67,29 @@ export function createCaptionsRepo(db: Db, deps: RepoDeps) {
       return require(id);
     },
     get,
+    // All or nothing, with one timestamp so the rows keep the order they were given in.
+    createMany(inputs: readonly CaptionInput[]): Caption[] {
+      const now = deps.now();
+      const insert = db.prepare(
+        `INSERT INTO captions (id, text, slot, product_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      );
+      const run = db.transaction(() =>
+        inputs.map((input) => {
+          const id = deps.newId();
+          insert.run(
+            id,
+            input.text,
+            input.slot,
+            input.productId ?? null,
+            now,
+            now,
+          );
+          return id;
+        }),
+      );
+      return run().map(require);
+    },
     list({ slot, productId }: CaptionListOptions = {}): Caption[] {
       const where: string[] = [];
       const params: string[] = [];
@@ -83,7 +106,7 @@ export function createCaptionsRepo(db: Db, deps: RepoDeps) {
       const rows = db
         .prepare(
           `SELECT * FROM captions ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-           ORDER BY created_at, id`,
+           ORDER BY created_at, rowid`,
         )
         .all(...params) as CaptionRow[];
       return rows.map(toCaption);

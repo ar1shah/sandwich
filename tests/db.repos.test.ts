@@ -233,6 +233,35 @@ describe("media", () => {
   });
 });
 
+describe("captions createMany", () => {
+  it("inserts all rows with one timestamp in the given order", async () => {
+    const { repos } = await makeTempLibraryDb();
+    const rows = repos.captions.createMany([
+      { text: "one", slot: "before" },
+      { text: "two", slot: "after" },
+      { text: "three", slot: "any" },
+    ]);
+    expect(rows.map((r) => r.text)).toEqual(["one", "two", "three"]);
+    expect(new Set(rows.map((r) => r.createdAt)).size).toBe(1);
+    expect(repos.captions.list().map((r) => r.text)).toEqual([
+      "one",
+      "two",
+      "three",
+    ]);
+  });
+
+  it("is all or nothing: a bad row rolls the whole batch back", async () => {
+    const { repos } = await makeTempLibraryDb();
+    expect(() =>
+      repos.captions.createMany([
+        { text: "ok", slot: "any" },
+        { text: "bad product", slot: "any", productId: "missing" },
+      ]),
+    ).toThrow();
+    expect(repos.captions.list()).toEqual([]);
+  });
+});
+
 describe("captions", () => {
   it("creates, filters by slot and product, updates, counts uses, removes", async () => {
     const { repos } = await makeTempLibraryDb();

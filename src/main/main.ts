@@ -15,7 +15,9 @@ import { DEFAULT_LIBRARY_FOLDER_NAME } from "../shared/library";
 import { registerJobsIpc } from "./ipc/jobs";
 import { registerLibraryIpc } from "./ipc/library";
 import { createBrollService } from "./broll/brollService";
+import { createCaptionService } from "./captions/captionService";
 import { registerBrollIpc } from "./ipc/broll";
+import { registerCaptionsIpc } from "./ipc/captions";
 import { registerMediaIpc } from "./ipc/media";
 import { registerProductsIpc } from "./ipc/products";
 import { createJobService } from "./jobs";
@@ -237,6 +239,15 @@ registerBrollIpc({
       return root && repos ? { root, repos } : null;
     },
     jobs: jobService,
+  }),
+  assertTrustedSender,
+});
+registerCaptionsIpc({
+  captions: createCaptionService({
+    getLibrary: () => {
+      const repos = libraryManager.getRepos();
+      return repos ? { repos } : null;
+    },
   }),
   assertTrustedSender,
 });

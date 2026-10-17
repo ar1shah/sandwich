@@ -13,9 +13,15 @@ export type BulkPasteResult = {
   errors: BulkPasteError[];
 };
 
-export function parseBulkCaptions(input: string): BulkPasteResult {
-  const captions: ParsedCaption[] = [];
-  const errors: BulkPasteError[] = [];
+// One non-blank input line: either a caption or the reason it could not be read.
+export type BulkParsedLine =
+  | { ok: true; line: number; raw: string; slot: CaptionSlot; text: string }
+  | { ok: false; line: number; raw: string; message: string };
+
+// Every non-blank line in order, with its real line number (blank lines are skipped but
+// still counted).
+export function parseBulkLines(input: string): BulkParsedLine[] {
+  const lines: BulkParsedLine[] = [];
 
   input.split(/\r?\n/).forEach((raw, index) => {
     const line = index + 1;
@@ -30,7 +36,8 @@ export function parseBulkCaptions(input: string): BulkPasteResult {
     if (pipe !== -1) {
       const slotText = trimmed.slice(0, pipe).trim().toLowerCase();
       if (!isCaptionSlot(slotText)) {
-        errors.push({
+        lines.push({
+          ok: false,
           line,
           raw,
           message: `Unknown slot "${trimmed.slice(0, pipe).trim()}". Use ${CAPTION_SLOTS.join(", ")}.`,
@@ -47,12 +54,29 @@ export function parseBulkCaptions(input: string): BulkPasteResult {
       .join("\n")
       .trim();
     if (text === "") {
-      errors.push({ line, raw, message: "Caption text is empty." });
+      lines.push({ ok: false, line, raw, message: "Caption text is empty." });
       return;
     }
-    captions.push({ slot, text });
+    lines.push({ ok: true, line, raw, slot, text });
   });
 
+  return lines;
+}
+
+export function parseBulkCaptions(input: string): BulkPasteResult {
+  const captions: ParsedCaption[] = [];
+  const errors: BulkPasteError[] = [];
+  for (const parsed of parseBulkLines(input)) {
+    if (parsed.ok) {
+      captions.push({ slot: parsed.slot, text: parsed.text });
+    } else {
+      errors.push({
+        line: parsed.line,
+        message: parsed.message,
+        raw: parsed.raw,
+      });
+    }
+  }
   return { captions, errors };
 }
 

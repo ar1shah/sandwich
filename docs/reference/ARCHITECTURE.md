@@ -197,7 +197,7 @@ products.list({ search? }) / products.create(input) / products.update(id, patch)
 broll.list(productId) / broll.import(productId, filePaths[]) -> BrollResult<jobIds> / broll.remove(id) -> BrollResult<true>   // { ok: false } for a missing or archived product
 files.pathsFor(File[]) -> string[]         // preload only (webUtils.getPathForFile), no IPC; "" = no path on disk
 media.importUgc(filePaths[]) -> jobIds     // mp4/mov/m4v, any letter case
-captions.list({ productId?, slot? }) / captions.create / captions.update / captions.remove / captions.bulkAdd(text, productId?)
+captions.list() -> Caption[] (whole bank, filtered in the renderer) / captions.create(input) / captions.update({ id, patch }) / captions.remove(id) / captions.bulkAdd({ productId, items[] }) -> CaptionResult<...>   // { ok: false, code: invalid | not-found | product-missing }; the renderer parses the paste (validateBulkCaptions) and sends only valid items
 videos.saveDraft(recipe) / videos.list({ productId? }) / videos.get(id) / videos.export(recipe) -> jobId / videos.reveal(id)
 jobs.list() -> JobInfo[] / jobs.cancel(id) -> boolean
 events (main -> renderer, one channel): job:event { type: queued | started | progress | done | failed | cancelled, job: JobInfo }

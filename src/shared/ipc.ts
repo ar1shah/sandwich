@@ -3,10 +3,17 @@ import type {
   LibraryActivateOptions,
   LibraryCandidate,
   LibraryChooseSource,
+  Caption,
   LibraryState,
   Media,
 } from "./library";
 import type { BrollResult } from "./broll";
+import type {
+  BulkAddCaptionsInput,
+  CaptionResult,
+  CreateCaptionInput,
+  UpdateCaptionInput,
+} from "./captions";
 import type { JobEvent, JobInfo } from "./jobs";
 import type {
   CreateProductRequest,
@@ -26,6 +33,11 @@ export const MEDIA_IMPORT_UGC_CHANNEL = "media:importUgc";
 export const BROLL_LIST_CHANNEL = "broll:list";
 export const BROLL_IMPORT_CHANNEL = "broll:import";
 export const BROLL_REMOVE_CHANNEL = "broll:remove";
+export const CAPTIONS_LIST_CHANNEL = "captions:list";
+export const CAPTIONS_CREATE_CHANNEL = "captions:create";
+export const CAPTIONS_UPDATE_CHANNEL = "captions:update";
+export const CAPTIONS_REMOVE_CHANNEL = "captions:remove";
+export const CAPTIONS_BULK_ADD_CHANNEL = "captions:bulkAdd";
 export const PRODUCTS_LIST_CHANNEL = "products:list";
 export const PRODUCTS_CREATE_CHANNEL = "products:create";
 export const PRODUCTS_UPDATE_CHANNEL = "products:update";
@@ -99,6 +111,20 @@ export type SandwichApi = {
     archive: (id: string) => Promise<ProductResult<ProductSummary>>;
     // Call when a product is picked for a video, so it sorts first next time.
     touchLastUsed: (id: string) => Promise<ProductResult<ProductSummary>>;
+  };
+  captions: {
+    // The whole bank, oldest first. Filtering and search happen in the renderer.
+    list: () => Promise<Caption[]>;
+    // Failures the user can fix (product gone or archived) come back as { ok: false };
+    // only bugs reject.
+    create: (input: CreateCaptionInput) => Promise<CaptionResult<Caption>>;
+    // Editing text or slot works even when the caption's product is archived; moving a
+    // caption to an archived or missing product does not.
+    update: (input: UpdateCaptionInput) => Promise<CaptionResult<Caption>>;
+    remove: (id: string) => Promise<CaptionResult<true>>;
+    // All or nothing, in one transaction, with one shared timestamp so the list keeps the
+    // pasted order.
+    bulkAdd: (input: BulkAddCaptionsInput) => Promise<CaptionResult<Caption[]>>;
   };
   dev: {
     // Queues every clip in the project's fixtures/ folder. Rejects in packaged builds.
