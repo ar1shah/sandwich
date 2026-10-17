@@ -13,6 +13,7 @@ export const SandwichVideo: React.FC<SandwichProps> = ({
   mediaBaseUrl,
   showSafeZone = false,
   showTimecode = false,
+  placeholders,
 }) => {
   const { fps } = useVideoConfig();
   const timeline = useMemo(() => buildTimeline(recipe, fps), [recipe, fps]);
@@ -37,6 +38,7 @@ export const SandwichVideo: React.FC<SandwichProps> = ({
               timeline={clipTimeline}
               mediaBaseUrl={mediaBaseUrl}
               fontReady={fontReady}
+              placeholder={placeholders?.[clip.slot]}
             />
           </Sequence>
         );

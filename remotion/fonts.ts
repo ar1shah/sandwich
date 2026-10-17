@@ -1,12 +1,14 @@
 import { loadFont } from "@remotion/fonts";
 import { useEffect, useState } from "react";
-import { staticFile, useDelayRender } from "remotion";
+import { useDelayRender } from "remotion";
+import captionFontUrl from "../assets/fonts/TikTokSans36pt-Bold.ttf";
 
 // One open-license font for captions in preview and export (DECISIONS #12): TikTok Sans
-// 36pt Bold, served from the Remotion public dir (assets/).
+// 36pt Bold. It is imported as a module, so the Vite renderer (Player) and the Remotion
+// bundler (render) each emit and resolve it themselves; no staticFile() base to get wrong
+// under file:// (DECISIONS #34).
 export const CAPTION_FONT_FAMILY = "Sandwich Caption";
 export const CAPTION_FONT_WEIGHT = 700;
-const CAPTION_FONT_FILE = "fonts/TikTokSans36pt-Bold.ttf";
 
 // The exact CSS font shorthand used for drawing AND for canvas measuring, so the two
 // cannot disagree.
@@ -19,7 +21,7 @@ let fontPromise: Promise<void> | null = null;
 export function loadCaptionFont(): Promise<void> {
   fontPromise ??= loadFont({
     family: CAPTION_FONT_FAMILY,
-    url: staticFile(CAPTION_FONT_FILE),
+    url: captionFontUrl,
     weight: String(CAPTION_FONT_WEIGHT),
   }).catch((error: unknown) => {
     fontPromise = null; // allow a retry on the next mount

@@ -4,7 +4,7 @@ import {
   totalDuration,
   type Recipe,
 } from "../src/shared/recipe";
-import { buildTimeline } from "../src/shared/timeline";
+import { buildTimeline, slotStartFrame } from "../src/shared/timeline";
 
 const FPS = 30;
 
@@ -151,5 +151,20 @@ describe("buildTimeline", () => {
       durationInFrames: 150,
       trimBeforeFrames: 0,
     });
+  });
+});
+
+describe("slotStartFrame", () => {
+  it("is the first frame of each slot's clip", () => {
+    const timeline = buildTimeline(recipeWith([3, 4, 5]), FPS);
+    expect(slotStartFrame(timeline, "before")).toBe(0);
+    expect(slotStartFrame(timeline, "after")).toBe(90);
+    expect(slotStartFrame(timeline, "broll")).toBe(210);
+  });
+
+  it("follows trimmed lengths", () => {
+    const timeline = buildTimeline(recipeWith([2.5, 3.1, 4]), FPS);
+    expect(slotStartFrame(timeline, "after")).toBe(75);
+    expect(slotStartFrame(timeline, "broll")).toBe(168);
   });
 });

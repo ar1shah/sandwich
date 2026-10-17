@@ -17,7 +17,9 @@ export const ClipLayer: React.FC<{
   timeline: ClipTimeline;
   mediaBaseUrl: string;
   fontReady: boolean;
-}> = ({ clip, timeline, mediaBaseUrl, fontReady }) => {
+  // Editor preview only: shown while the slot has no media.
+  placeholder?: string;
+}> = ({ clip, timeline, mediaBaseUrl, fontReady, placeholder }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const scale = zoomScale(clip.zoom, frame, timeline.durationInFrames, fps);
@@ -41,6 +43,23 @@ export const ClipLayer: React.FC<{
               objectPosition: origin,
             }}
           />
+        </AbsoluteFill>
+      )}
+      {clip.mediaPath === "" && placeholder !== undefined && (
+        <AbsoluteFill
+          style={{
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#1c1c22",
+            color: "#9a9aa8",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 64,
+            fontWeight: 600,
+            textAlign: "center",
+            padding: 120,
+          }}
+        >
+          {placeholder}
         </AbsoluteFill>
       )}
       {hasCaption && clip.caption && (

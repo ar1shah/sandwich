@@ -34,6 +34,7 @@
     "@remotion/bundler": "4.0.535",
     "@remotion/cli": "4.0.535",
     "@remotion/fonts": "4.0.535",
+    "@remotion/player": "4.0.535",
     "@remotion/renderer": "4.0.535",
     "better-sqlite3": "13.0.3",
     "react": "19.2.3",
