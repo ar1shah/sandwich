@@ -38,6 +38,8 @@ function toMedia(row: MediaRow): Media {
 }
 
 export type MediaInput = {
+  // Defaults to a new id. Pass one when file names are built from it before the insert.
+  id?: string;
   kind: MediaKind;
   productId?: string | null;
   path: string;
@@ -66,7 +68,7 @@ export function createMediaRepo(db: Db, deps: RepoDeps) {
 
   return {
     create(input: MediaInput): Media {
-      const id = deps.newId();
+      const id = input.id ?? deps.newId();
       db.prepare(
         `INSERT INTO media
            (id, kind, product_id, path, thumb_path, filmstrip_path, original_name,

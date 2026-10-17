@@ -26,7 +26,8 @@
     "ffmpeg:check": "tsx scripts/ffmpeg-check.ts",
     "probe": "tsx scripts/probe.ts",
     "normalize": "tsx scripts/normalize.ts",
-    "test:normalize": "tsx scripts/test-normalize.ts"
+    "test:normalize": "tsx scripts/test-normalize.ts",
+    "test:import": "tsx scripts/test-import.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.535",

@@ -11,6 +11,7 @@ export const LIBRARY_DIRS = [
   "products",
   "clips",
   "cache/filmstrips",
+  "cache/tmp",
   "exports",
 ] as const;
 

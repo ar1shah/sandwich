@@ -9,28 +9,36 @@ import { runCapture } from "./run";
 export async function makeThumbnail(
   videoPath: string,
   jpgPath: string,
-  { duration, ffPaths }: { duration: number; ffPaths?: FfPaths },
+  {
+    duration,
+    ffPaths,
+    signal,
+  }: { duration: number; ffPaths?: FfPaths; signal?: AbortSignal },
 ): Promise<void> {
   const ff = ffPaths ?? resolveDevFfPaths();
   await mkdir(path.dirname(jpgPath), { recursive: true });
-  await runCapture(ff.ffmpeg, [
-    "-y",
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-nostdin",
-    "-ss",
-    thumbSeekTime(duration).toFixed(3),
-    "-i",
-    videoPath,
-    "-frames:v",
-    "1",
-    "-vf",
-    `scale=${THUMBNAIL_WIDTH}:-2`,
-    "-q:v",
-    "3",
-    "-update",
-    "1",
-    jpgPath,
-  ]);
+  await runCapture(
+    ff.ffmpeg,
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-nostdin",
+      "-ss",
+      thumbSeekTime(duration).toFixed(3),
+      "-i",
+      videoPath,
+      "-frames:v",
+      "1",
+      "-vf",
+      `scale=${THUMBNAIL_WIDTH}:-2`,
+      "-q:v",
+      "3",
+      "-update",
+      "1",
+      jpgPath,
+    ],
+    { signal },
+  );
 }
