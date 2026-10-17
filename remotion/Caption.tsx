@@ -2,31 +2,19 @@ import { useMemo } from "react";
 import { AbsoluteFill } from "remotion";
 import {
   CAPTION_LINE_HEIGHT,
-  CAPTION_START_FONT_SIZE,
-  CAPTION_WRAP_FRACTION,
-  computeCaptionLayout,
   placeCaptionBlock,
 } from "../src/shared/captionLayout";
 import type { ClipCaption } from "../src/shared/recipe";
-import { FRAME_HEIGHT, FRAME_WIDTH, safeRect } from "../src/shared/safeZone";
+import { FRAME_HEIGHT, FRAME_WIDTH } from "../src/shared/safeZone";
+import {
+  BOX_PAD_X,
+  BOX_RADIUS,
+  layoutCaption,
+  OUTLINE_STROKE,
+  SAFE,
+} from "./captionGeometry";
 import { captionFontShorthand, CAPTION_FONT_FAMILY } from "./fonts";
 import { measureCaptionWidth } from "./measureText";
-
-const SAFE = safeRect();
-
-// Outline: the stroke is drawn on a layer UNDER the fill, so only its outer half shows and
-// a thick stroke cannot eat thin letters. Visible outer width = OUTLINE_STROKE / 2 em.
-const OUTLINE_STROKE = 0.15; // em, centered on the glyph edge
-const OUTLINE_RESERVE = 12; // px kept free on each wrap line for the visible stroke
-
-// Box: one rounded white box per line, hugging the line's width (TikTok native look).
-const BOX_PAD_X = 0.35; // em
-const BOX_RADIUS = 0.25; // em
-const BOX_RESERVE = 2 * BOX_PAD_X * CAPTION_START_FONT_SIZE; // px, at the largest size
-
-const wrapWidth = (style: ClipCaption["style"]): number =>
-  SAFE.width * CAPTION_WRAP_FRACTION -
-  (style === "box" ? BOX_RESERVE : OUTLINE_RESERVE);
 
 export const Caption: React.FC<{
   caption: ClipCaption;
@@ -36,12 +24,7 @@ export const Caption: React.FC<{
   const layout = useMemo(
     () =>
       fontReady
-        ? computeCaptionLayout({
-            text: caption.text,
-            maxWidth: wrapWidth(caption.style),
-            maxHeight: SAFE.height,
-            measureWidth: measureCaptionWidth,
-          })
+        ? layoutCaption({ text: caption.text, style: caption.style })
         : null,
     [fontReady, caption.text, caption.style],
   );
@@ -72,6 +55,7 @@ export const Caption: React.FC<{
   return (
     <AbsoluteFill>
       <svg
+        data-testid="caption-svg"
         width="100%"
         height="100%"
         viewBox={`0 0 ${FRAME_WIDTH} ${FRAME_HEIGHT}`}
@@ -102,6 +86,7 @@ export const Caption: React.FC<{
             {lines.map((line, index) => (
               <text
                 key={`text-${index}`}
+                data-testid="caption-line"
                 {...textProps}
                 y={lineCenterY(index)}
                 fill="#000000"
@@ -130,6 +115,7 @@ export const Caption: React.FC<{
             {lines.map((line, index) => (
               <text
                 key={`fill-${index}`}
+                data-testid="caption-line"
                 {...textProps}
                 y={lineCenterY(index)}
                 fill="#ffffff"

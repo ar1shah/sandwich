@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCaptionLook,
+  applyCaptionPick,
+  applyCaptionText,
   applyClipMedia,
+  applyMuted,
+  applySourceCaption,
   applyTrim,
+  applyZoom,
+  clearCaption,
   clearClip,
+  defaultCaptionLook,
   draftHasMedia,
   filledSlots,
+  isZoomOn,
   slotStatus,
 } from "../src/shared/editorRecipe";
 import { DEFAULT_CLIP_DURATIONS, RecipeSchema } from "../src/shared/recipe";
@@ -182,5 +191,160 @@ describe("applyTrim", () => {
     expect(RecipeSchema.safeParse(next).success).toBe(true);
     // The input is untouched.
     expect(filled.clips[0].trimStart).toBe(0);
+  });
+});
+
+describe("zoom and mute", () => {
+  it("zoom on is slow push, off is none", () => {
+    const on = applyZoom(emptyRecipe(), "after", true, later);
+    expect(on.clips[1].zoom).toBe("slow-push");
+    expect(on.updatedAt).toBe(later.toISOString());
+    expect(applyZoom(on, "after", false, later).clips[1].zoom).toBe("none");
+    expect(on.clips[0].zoom).toBe("none");
+  });
+
+  it("any zoom style other than none reads as on", () => {
+    expect(isZoomOn({ zoom: "none" })).toBe(false);
+    expect(isZoomOn({ zoom: "slow-push" })).toBe(true);
+    expect(isZoomOn({ zoom: "punch-in" })).toBe(true);
+  });
+
+  it("mute changes only its slot", () => {
+    const next = applyMuted(emptyRecipe(), "broll", false, later);
+    expect(next.clips.map((c) => c.muted)).toEqual([false, false, false]);
+    expect(applyMuted(next, "before", true, later).clips[0].muted).toBe(true);
+  });
+});
+
+describe("captions", () => {
+  const pick = { text: "10/10 the 501s", sourceCaptionId: "c1" };
+
+  it("a first pick uses outline / middle", () => {
+    const next = applyCaptionPick(emptyRecipe(), "before", pick, later);
+    expect(next.clips[0].caption).toEqual({
+      text: "10/10 the 501s",
+      sourceCaptionId: "c1",
+      style: "outline",
+      position: "middle",
+    });
+    expect(RecipeSchema.safeParse(next).success).toBe(true);
+  });
+
+  it("a pick keeps the look the slot's caption already has", () => {
+    let recipe = applyCaptionPick(emptyRecipe(), "before", pick, later);
+    recipe = applyCaptionLook(
+      recipe,
+      "before",
+      { style: "box", position: "top" },
+      later,
+    );
+    const next = applyCaptionPick(
+      recipe,
+      "before",
+      { text: "another", sourceCaptionId: "c2" },
+      later,
+    );
+    expect(next.clips[0].caption).toEqual({
+      text: "another",
+      sourceCaptionId: "c2",
+      style: "box",
+      position: "top",
+    });
+  });
+
+  it("a new caption copies the look of another slot (before, then after, then broll)", () => {
+    let recipe = emptyRecipe();
+    recipe = applyCaptionPick(recipe, "broll", pick, later);
+    recipe = applyCaptionLook(recipe, "broll", { style: "box" }, later);
+    expect(defaultCaptionLook(recipe, "before")).toEqual({
+      style: "box",
+      position: "middle",
+    });
+
+    recipe = applyCaptionPick(recipe, "after", pick, later);
+    recipe = applyCaptionLook(
+      recipe,
+      "after",
+      { style: "outline", position: "top" },
+      later,
+    );
+    // After wins over broll.
+    expect(defaultCaptionLook(recipe, "before")).toEqual({
+      style: "outline",
+      position: "top",
+    });
+
+    recipe = applyCaptionPick(recipe, "before", pick, later);
+    recipe = applyCaptionLook(recipe, "before", { style: "box" }, later);
+    // Before wins for the other two; a slot's own caption never counts for itself.
+    expect(defaultCaptionLook(recipe, "after")).toEqual({
+      style: "box",
+      position: "top",
+    });
+    expect(
+      applyCaptionPick(
+        clearCaption(recipe, "after", later),
+        "after",
+        pick,
+        later,
+      ).clips[1].caption,
+    ).toMatchObject({ style: "box", position: "top" });
+  });
+
+  it("with no caption anywhere the default look is outline / middle", () => {
+    expect(defaultCaptionLook(emptyRecipe(), "after")).toEqual({
+      style: "outline",
+      position: "middle",
+    });
+  });
+
+  it("typing creates a caption (no source) with the default look", () => {
+    const other = applyCaptionLook(
+      applyCaptionPick(emptyRecipe(), "before", pick, later),
+      "before",
+      { style: "box", position: "top" },
+      later,
+    );
+    const next = applyCaptionText(other, "after", "my own words", later);
+    expect(next.clips[1].caption).toEqual({
+      text: "my own words",
+      style: "box",
+      position: "top",
+    });
+  });
+
+  it("typing keeps the look and the source of an existing caption", () => {
+    let recipe = applyCaptionPick(emptyRecipe(), "before", pick, later);
+    recipe = applyCaptionLook(recipe, "before", { style: "box" }, later);
+    const next = applyCaptionText(recipe, "before", "edited", later);
+    expect(next.clips[0].caption).toEqual({
+      text: "edited",
+      sourceCaptionId: "c1",
+      style: "box",
+      position: "middle",
+    });
+    // Emptying the box keeps the caption (and its look); only Clear removes it.
+    expect(
+      applyCaptionText(next, "before", "", later).clips[0].caption,
+    ).toMatchObject({
+      text: "",
+      style: "box",
+    });
+  });
+
+  it("look changes need a caption", () => {
+    const recipe = emptyRecipe();
+    expect(applyCaptionLook(recipe, "before", { style: "box" }, later)).toBe(
+      recipe,
+    );
+  });
+
+  it("re-points the source and clears", () => {
+    let recipe = applyCaptionPick(emptyRecipe(), "before", pick, later);
+    recipe = applySourceCaption(recipe, "before", "c9", later);
+    expect(recipe.clips[0].caption?.sourceCaptionId).toBe("c9");
+    expect(clearCaption(recipe, "before", later).clips[0].caption).toBeNull();
+    const none = emptyRecipe();
+    expect(applySourceCaption(none, "before", "c9", later)).toBe(none);
   });
 });

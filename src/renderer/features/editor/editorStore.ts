@@ -2,17 +2,25 @@ import { create } from "zustand";
 import { parseDraftRecipe, withProductSlug } from "../../../shared/drafts";
 import { debounce } from "../../../shared/debounce";
 import {
+  applyCaptionLook,
+  applyCaptionPick,
+  applyCaptionText,
   applyClipMedia,
+  applyMuted,
+  applySourceCaption,
   applyTrim,
+  applyZoom,
+  clearCaption,
   clearClip,
   draftHasMedia,
+  type CaptionLook,
 } from "../../../shared/editorRecipe";
 import {
   hasImportExtension,
   isTerminalJobState,
   type JobInfo,
 } from "../../../shared/jobs";
-import type { Media } from "../../../shared/library";
+import type { Caption, Media } from "../../../shared/library";
 import { isUsableMedia } from "../../../shared/mediaLookup";
 import type { ProductSummary } from "../../../shared/products";
 import {
@@ -34,7 +42,7 @@ type OpenResult = { ok: true } | { ok: false; message: string };
 // saves once), `debounced` for held-key nudges, `now` for a finished edit.
 export type TrimSave = "none" | "debounced" | "now";
 
-// Held-key nudges arrive faster than they are worth saving.
+// Held-key nudges and typing arrive faster than they are worth saving.
 export const TRIM_SAVE_DEBOUNCE_MS = 300;
 
 export type EditorStore = {
@@ -73,6 +81,17 @@ export type EditorStore = {
   setTrim: (slot: Slot, trim: Trim, save: TrimSave) => void;
   // A drag ended: saves once if it changed anything.
   finishTrim: () => void;
+  setZoom: (slot: Slot, on: boolean) => void;
+  setMuted: (slot: Slot, muted: boolean) => void;
+  // Picking from the bank: `text` is the token-resolved text. Remembers which caption it
+  // started from; use_count is NOT touched here (export does that).
+  pickCaption: (slot: Slot, caption: Caption, text: string) => void;
+  // Typing in the caption box: updates at once, saves after a pause.
+  setCaptionText: (slot: Slot, text: string) => void;
+  setCaptionLook: (slot: Slot, look: Partial<CaptionLook>) => void;
+  clearCaption: (slot: Slot) => void;
+  // After "Save to bank": the caption now starts from the new bank row.
+  adoptCaptionSource: (slot: Slot, captionId: string) => void;
   clearSlot: (slot: Slot) => void;
   dismissNotice: () => void;
   // Resolves when every queued save has finished.
@@ -113,24 +132,25 @@ let saveChain: Promise<void> = Promise.resolve();
 const handling = new Set<string>();
 
 export const useEditorStore = create<EditorStore>((set, get) => {
-  // True while the draft holds a trim change that no save has been queued for.
-  let trimDirty = false;
+  // True while the draft holds a trim or caption-text change that no save has been queued
+  // for.
+  let editDirty = false;
 
   // Saves the draft as it is NOW. The debounced save calls this when its timer fires, so
   // a recipe captured at schedule time can never overwrite a later change (a trim followed
   // by Remove within 300 ms must not bring the clip back).
-  function saveTrimNow(): void {
-    trimSave.cancel();
+  function saveEditNow(): void {
+    editSave.cancel();
     const draft = get().draft;
-    if (!trimDirty || !draft) {
+    if (!editDirty || !draft) {
       return;
     }
-    trimDirty = false;
+    editDirty = false;
     if (get().persisted || draftHasMedia(draft)) {
       void queueSave(draft);
     }
   }
-  const trimSave = debounce(saveTrimNow, TRIM_SAVE_DEBOUNCE_MS);
+  const editSave = debounce(saveEditNow, TRIM_SAVE_DEBOUNCE_MS);
 
   function cancelJob(jobId: string): void {
     void window.api.jobs.cancel(jobId).catch(() => false);
@@ -190,8 +210,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
   // later changes (including emptying a slot) keep updating it.
   function commit(next: Recipe): void {
     // This save carries the latest draft, trim edits included.
-    trimSave.cancel();
-    trimDirty = false;
+    editSave.cancel();
+    editDirty = false;
     set({ draft: next });
     if (get().persisted || draftHasMedia(next)) {
       void queueSave(next);
@@ -328,8 +348,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     async closeDraft() {
       cancelAllPending();
       // The save below carries any trim change.
-      trimSave.cancel();
-      trimDirty = false;
+      editSave.cancel();
+      editDirty = false;
       const draft = get().draft;
       if (draft && (get().persisted || draftHasMedia(draft))) {
         await queueSave(draft);
@@ -475,16 +495,82 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         return;
       }
       set({ draft: applyTrim(draft, slot, next, new Date()) });
-      trimDirty = true;
+      editDirty = true;
       if (save === "now") {
-        saveTrimNow();
+        saveEditNow();
       } else if (save === "debounced") {
-        trimSave();
+        editSave();
       }
     },
 
     finishTrim() {
-      saveTrimNow();
+      saveEditNow();
+    },
+
+    setZoom(slot, on) {
+      const draft = get().draft;
+      if (draft && !get().switching) {
+        commit(applyZoom(draft, slot, on, new Date()));
+      }
+    },
+
+    setMuted(slot, muted) {
+      const draft = get().draft;
+      if (draft && !get().switching) {
+        commit(applyMuted(draft, slot, muted, new Date()));
+      }
+    },
+
+    pickCaption(slot, caption, text) {
+      const draft = get().draft;
+      if (draft && !get().switching) {
+        commit(
+          applyCaptionPick(
+            draft,
+            slot,
+            { text, sourceCaptionId: caption.id },
+            new Date(),
+          ),
+        );
+      }
+    },
+
+    setCaptionText(slot, text) {
+      const draft = get().draft;
+      const clip = draft?.clips[SLOTS.indexOf(slot)];
+      if (!draft || !clip || get().switching || clip.caption?.text === text) {
+        return;
+      }
+      set({ draft: applyCaptionText(draft, slot, text, new Date()) });
+      editDirty = true;
+      editSave();
+    },
+
+    setCaptionLook(slot, look) {
+      const draft = get().draft;
+      if (draft && !get().switching) {
+        const next = applyCaptionLook(draft, slot, look, new Date());
+        if (next !== draft) {
+          commit(next);
+        }
+      }
+    },
+
+    clearCaption(slot) {
+      const draft = get().draft;
+      if (draft && !get().switching) {
+        commit(clearCaption(draft, slot, new Date()));
+      }
+    },
+
+    adoptCaptionSource(slot, captionId) {
+      const draft = get().draft;
+      if (draft && !get().switching) {
+        const next = applySourceCaption(draft, slot, captionId, new Date());
+        if (next !== draft) {
+          commit(next);
+        }
+      }
     },
 
     clearSlot(slot) {
@@ -511,12 +597,12 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     },
 
     async flush() {
-      saveTrimNow();
+      saveEditNow();
       await saveChain;
     },
 
     async beforeLibrarySwitch() {
-      saveTrimNow();
+      saveEditNow();
       await saveChain;
       set({ switching: true });
     },
@@ -529,8 +615,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       // Main cancelled the old library's jobs; forget them here and start clean, then
       // look for a draft that was open in the new library.
       handling.clear();
-      trimSave.cancel();
-      trimDirty = false;
+      editSave.cancel();
+      editDirty = false;
       set({ ...EMPTY, epoch: get().epoch + 1, switching: false });
       useSettingsStore.setState({ loaded: false });
       await get().hydrate();

@@ -93,6 +93,18 @@ export const PreviewPanel: React.FC = () => {
     } else {
       frame = target.frame;
     }
+    if (seekRequest.onlyIfOutside && "slot" in target) {
+      const clip = current.clips.find((entry) => entry.slot === target.slot);
+      const now = player.current?.getCurrentFrame();
+      if (
+        clip &&
+        now !== undefined &&
+        now >= clip.from &&
+        now < clip.from + clip.durationInFrames
+      ) {
+        return;
+      }
+    }
     if (seekRequest.pause) {
       player.current?.pause();
     }

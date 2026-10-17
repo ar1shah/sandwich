@@ -2,9 +2,11 @@ import { SLOTS } from "../../../shared/recipe";
 import { slotStatus } from "../../../shared/editorRecipe";
 import { SLOT_LABELS } from "../editor/SlotCard";
 import { useEditorStore } from "../editor/editorStore";
+import { CaptionSection } from "../clip/CaptionSection";
+import { ClipControls } from "../clip/ClipControls";
 import { TrimSection } from "./TrimSection";
 
-// Right column: the selected slot's clip. Trim now; zoom, mute and captions arrive in 3.4.
+// Right column: the selected slot's clip: trim, zoom and mute, caption.
 export const ClipPanel: React.FC = () => {
   const selected = useEditorStore((s) => s.selectedSlot);
   const clip = useEditorStore((s) =>
@@ -31,8 +33,13 @@ export const ClipPanel: React.FC = () => {
       <p className="text-sm text-app-muted">Select a slot to edit its clip.</p>
     );
   } else if (status === "ready") {
+    const key = `${selected}:${clip.mediaPath}`;
     body = (
-      <TrimSection key={`${selected}:${clip.mediaPath}`} slot={selected} />
+      <>
+        <TrimSection key={`trim:${key}`} slot={selected} />
+        <ClipControls key={`controls:${key}`} slot={selected} />
+        <CaptionSection key={`caption:${key}`} slot={selected} />
+      </>
     );
   } else {
     const messages = {

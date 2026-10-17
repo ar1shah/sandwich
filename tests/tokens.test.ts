@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTokens } from "../src/shared/tokens";
+import { resolveTokens, tokenizeProductNames } from "../src/shared/tokens";
 
 const jeans = {
   fullName: "Levi's 501 Original Fit Jeans",
@@ -85,5 +85,71 @@ describe("resolveTokens", () => {
 
   it("keeps line breaks", () => {
     expect(resolveTokens("a\n{product}", jeans).text).toBe("a\nthe 501s");
+  });
+});
+
+describe("tokenizeProductNames (inverse of resolveTokens)", () => {
+  it("full name becomes {full}, short name {product}", () => {
+    expect(
+      tokenizeProductNames(
+        "the 501s are Levi's 501 Original Fit Jeans for me",
+        jeans,
+      ),
+    ).toBe("{product} are {full} for me");
+  });
+
+  it("round trips text built from tokens", () => {
+    for (const source of [
+      "10/10 {product}",
+      "{product} changed my whole wardrobe",
+      "{full}, honestly. {product}!",
+      "4 weeks later",
+    ]) {
+      const resolved = resolveTokens(source, jeans).text;
+      expect(
+        resolveTokens(tokenizeProductNames(resolved, jeans), jeans).text,
+      ).toBe(resolved);
+      expect(tokenizeProductNames(resolved, jeans)).toBe(source);
+    }
+  });
+
+  it("without a short name the full name becomes {product}", () => {
+    const plain = { fullName: "Levi's 501 Jeans", shortName: null };
+    expect(tokenizeProductNames("I love Levi's 501 Jeans", plain)).toBe(
+      "I love {product}",
+    );
+    expect(
+      tokenizeProductNames("I love Levi's 501 Jeans", {
+        fullName: "Levi's 501 Jeans",
+        shortName: "  ",
+      }),
+    ).toBe("I love {product}");
+  });
+
+  it("replaces the longer name first when the short name sits inside the full name", () => {
+    const product = { fullName: "Glow Serum Pro", shortName: "Serum" };
+    expect(
+      tokenizeProductNames("Glow Serum Pro is why this Serum works", product),
+    ).toBe("{full} is why this {product} works");
+  });
+
+  it("matches case-insensitively on word boundaries only", () => {
+    const product = { fullName: "Glow Serum Pro", shortName: "Serum" };
+    expect(tokenizeProductNames("SERUM, serum. Serums", product)).toBe(
+      "{product}, {product}. Serums",
+    );
+  });
+
+  it("leaves text without a product name unchanged", () => {
+    expect(tokenizeProductNames("4 weeks later {x}", jeans)).toBe(
+      "4 weeks later {x}",
+    );
+  });
+
+  it("does not treat regex characters in a name as syntax", () => {
+    const product = { fullName: "C++ (Pro) Kit", shortName: "the kit?" };
+    expect(
+      tokenizeProductNames("I use C++ (Pro) Kit and the kit?", product),
+    ).toBe("I use {full} and {product}");
   });
 });

@@ -15,7 +15,13 @@ import { useCaptionsStore } from "./captionsStore";
 import { INPUT, PRIMARY, SECONDARY, tokenProduct, Warning } from "./captionUi";
 
 export type CaptionFormMode =
-  | { kind: "create"; productId?: string | null }
+  | {
+      kind: "create";
+      productId?: string | null;
+      // Prefills, e.g. "Save to bank" from the editor.
+      text?: string;
+      slot?: CaptionSlot;
+    }
   | { kind: "edit"; caption: Caption };
 
 const GENERIC = "";
@@ -25,7 +31,9 @@ const GENERIC = "";
 export const CaptionFormModal: React.FC<{
   mode: CaptionFormMode;
   onClose: () => void;
-}> = ({ mode, onClose }) => {
+  // The caption that was just created (create mode only).
+  onSaved?: (caption: Caption) => void;
+}> = ({ mode, onClose, onSaved }) => {
   const editing = mode.kind === "edit" ? mode.caption : null;
   const products = useProductsStore((s) => s.products);
   const create = useCaptionsStore((s) => s.create);
@@ -33,8 +41,12 @@ export const CaptionFormModal: React.FC<{
   const ids = { text: useId(), slot: useId(), product: useId(), view: useId() };
 
   const initial = {
-    text: editing?.text ?? "",
-    slot: editing?.slot ?? ("any" as CaptionSlot),
+    text:
+      editing?.text ?? (mode.kind === "create" ? mode.text : undefined) ?? "",
+    slot:
+      editing?.slot ??
+      (mode.kind === "create" ? mode.slot : undefined) ??
+      ("any" as CaptionSlot),
     productId:
       (editing
         ? editing.productId
@@ -108,6 +120,9 @@ export const CaptionFormModal: React.FC<{
           })
         : await create(form);
       if (result.ok) {
+        if (!editing) {
+          onSaved?.(result.value as Caption);
+        }
         onClose();
       } else {
         setError(result.message);

@@ -12,6 +12,10 @@ export const CAPTION_LINE_HEIGHT = 1.2;
 // Wrap width as a fraction of the safe rect width.
 export const CAPTION_WRAP_FRACTION = 0.8;
 
+// Below this the caption is still drawn, but the editor warns that it is getting small
+// (the floor is 36 px; TikTok text under ~48 px at 1080 wide gets hard to read on a phone).
+export const CAPTION_READABLE_FONT_SIZE = 48;
+
 export type MeasureWidth = (text: string, fontSize: number) => number;
 
 export type CaptionLayout = {
@@ -153,4 +157,17 @@ export function placeCaptionBlock(
   const top = centerY - blockHeight / 2;
   const lowest = safe.y + safe.height - blockHeight;
   return Math.max(safe.y, Math.min(top, lowest));
+}
+
+export type CaptionFit = "ok" | "small" | "overflow";
+
+// How a laid-out caption reads: `overflow` (more than 3 lines or too tall at the floor
+// size), `small` (shrunk below the readable size), otherwise `ok`.
+export function captionFit(
+  layout: Pick<CaptionLayout, "fontSize" | "overflow">,
+): CaptionFit {
+  if (layout.overflow) {
+    return "overflow";
+  }
+  return layout.fontSize < CAPTION_READABLE_FONT_SIZE ? "small" : "ok";
 }

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   CAPTION_MAX_LINES,
   CAPTION_MIN_FONT_SIZE,
+  CAPTION_READABLE_FONT_SIZE,
   CAPTION_START_FONT_SIZE,
+  captionFit,
   computeCaptionLayout,
   placeCaptionBlock,
   wrapText,
@@ -171,5 +173,33 @@ describe("placeCaptionBlock", () => {
 
   it("starts a block taller than the rect at the rect's top", () => {
     expect(placeCaptionBlock("middle", safe, safe.height + 300)).toBe(safe.y);
+  });
+});
+
+describe("captionFit", () => {
+  it("is ok at and above the readable size", () => {
+    expect(captionFit({ fontSize: 64, overflow: false })).toBe("ok");
+    expect(
+      captionFit({ fontSize: CAPTION_READABLE_FONT_SIZE, overflow: false }),
+    ).toBe("ok");
+  });
+
+  it("is small just below the readable size, down to the floor", () => {
+    expect(
+      captionFit({
+        fontSize: CAPTION_READABLE_FONT_SIZE - 2,
+        overflow: false,
+      }),
+    ).toBe("small");
+    expect(
+      captionFit({ fontSize: CAPTION_MIN_FONT_SIZE, overflow: false }),
+    ).toBe("small");
+  });
+
+  it("overflow wins over size", () => {
+    expect(
+      captionFit({ fontSize: CAPTION_MIN_FONT_SIZE, overflow: true }),
+    ).toBe("overflow");
+    expect(captionFit({ fontSize: 64, overflow: true })).toBe("overflow");
   });
 });
