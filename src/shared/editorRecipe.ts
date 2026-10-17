@@ -1,6 +1,12 @@
 // Pure recipe edits for the editor shell. The store calls these; nothing here touches
 // the DOM, the clock (it is passed in) or IPC.
-import { SLOTS, type ClipSpec, type Recipe, type Slot } from "./recipe";
+import {
+  SLOTS,
+  type ClipCaption,
+  type ClipSpec,
+  type Recipe,
+  type Slot,
+} from "./recipe";
 
 export type ClipMedia = {
   // Library-relative path of the normalized file.
@@ -84,6 +90,156 @@ export function applyTrim(
     recipe,
     slot,
     { ...clipOf(recipe, slot), trimStart: trim.start, duration: trim.duration },
+    now,
+  );
+}
+
+// Zoom is a switch in the MVP: on = slow push, off = none. A recipe that holds another
+// style (punch-in) reads as "on" and turning it off and on again gives slow push.
+export function isZoomOn(clip: Pick<ClipSpec, "zoom">): boolean {
+  return clip.zoom !== "none";
+}
+
+export function applyZoom(
+  recipe: Recipe,
+  slot: Slot,
+  on: boolean,
+  now: Date,
+): Recipe {
+  return replaceClip(
+    recipe,
+    slot,
+    { ...clipOf(recipe, slot), zoom: on ? "slow-push" : "none" },
+    now,
+  );
+}
+
+export function applyMuted(
+  recipe: Recipe,
+  slot: Slot,
+  muted: boolean,
+  now: Date,
+): Recipe {
+  return replaceClip(recipe, slot, { ...clipOf(recipe, slot), muted }, now);
+}
+
+export type CaptionLook = Pick<ClipCaption, "style" | "position">;
+
+export const FALLBACK_CAPTION_LOOK: CaptionLook = {
+  style: "outline",
+  position: "middle",
+};
+
+// The look a NEW caption gets: copied from another slot that already has a caption (before,
+// then after, then broll), so a video keeps one look unless the user changes it. With none
+// to copy it is outline / middle.
+export function defaultCaptionLook(recipe: Recipe, slot: Slot): CaptionLook {
+  for (const other of recipe.clips) {
+    if (other.slot !== slot && other.caption) {
+      return { style: other.caption.style, position: other.caption.position };
+    }
+  }
+  return FALLBACK_CAPTION_LOOK;
+}
+
+// A caption keeps its look when the slot already has one; only a slot without a caption
+// takes the default look.
+function lookFor(recipe: Recipe, slot: Slot): CaptionLook {
+  const existing = clipOf(recipe, slot).caption;
+  return existing
+    ? { style: existing.style, position: existing.position }
+    : defaultCaptionLook(recipe, slot);
+}
+
+// Picking from the bank: the text is already token-resolved and `sourceCaptionId` records
+// which bank row it started from (not that it is identical to it, DECISIONS #36).
+export function applyCaptionPick(
+  recipe: Recipe,
+  slot: Slot,
+  pick: { text: string; sourceCaptionId: string },
+  now: Date,
+): Recipe {
+  return replaceClip(
+    recipe,
+    slot,
+    {
+      ...clipOf(recipe, slot),
+      caption: {
+        ...lookFor(recipe, slot),
+        text: pick.text,
+        sourceCaptionId: pick.sourceCaptionId,
+      },
+    },
+    now,
+  );
+}
+
+// Typing in the caption box. Typing with no caption yet creates one (default look, no
+// source). Emptying the box keeps the caption object so its look survives; "Clear caption"
+// is what removes it.
+export function applyCaptionText(
+  recipe: Recipe,
+  slot: Slot,
+  text: string,
+  now: Date,
+): Recipe {
+  const existing = clipOf(recipe, slot).caption;
+  return replaceClip(
+    recipe,
+    slot,
+    {
+      ...clipOf(recipe, slot),
+      caption: existing
+        ? { ...existing, text }
+        : { ...lookFor(recipe, slot), text },
+    },
+    now,
+  );
+}
+
+// Style / position of a slot's caption. Nothing to change without a caption.
+export function applyCaptionLook(
+  recipe: Recipe,
+  slot: Slot,
+  look: Partial<CaptionLook>,
+  now: Date,
+): Recipe {
+  const existing = clipOf(recipe, slot).caption;
+  if (!existing) {
+    return recipe;
+  }
+  return replaceClip(
+    recipe,
+    slot,
+    { ...clipOf(recipe, slot), caption: { ...existing, ...look } },
+    now,
+  );
+}
+
+// Re-points the caption at a bank row (after "Save to bank" created one from its text).
+export function applySourceCaption(
+  recipe: Recipe,
+  slot: Slot,
+  sourceCaptionId: string,
+  now: Date,
+): Recipe {
+  const existing = clipOf(recipe, slot).caption;
+  if (!existing) {
+    return recipe;
+  }
+  return replaceClip(
+    recipe,
+    slot,
+    { ...clipOf(recipe, slot), caption: { ...existing, sourceCaptionId } },
+    now,
+  );
+}
+
+export function clearCaption(recipe: Recipe, slot: Slot, now: Date): Recipe {
+  return replaceClip(
+    recipe,
+    slot,
+    { ...clipOf(recipe, slot), caption: null },
     now,
   );
 }

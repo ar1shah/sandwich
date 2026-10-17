@@ -9,11 +9,21 @@ export type SeekTarget =
   | { frame: number };
 
 // `pause` stops playback first, so a drag does not fight a playing preview.
-export type SeekRequest = { target: SeekTarget; pause: boolean; nonce: number };
+// `onlyIfOutside` (slot targets only) skips the seek when the playhead is already inside
+// that slot's clip: a caption look change then shows up where you are looking. The panel
+// decides with the Player's own current frame, which is never kept in a store.
+export type SeekRequest = {
+  target: SeekTarget;
+  pause: boolean;
+  onlyIfOutside: boolean;
+  nonce: number;
+};
+
+export type SeekOptions = { pause?: boolean; onlyIfOutside?: boolean };
 
 export type PreviewStore = {
   seekRequest: SeekRequest | null;
-  requestSeek: (target: SeekTarget, options?: { pause?: boolean }) => void;
+  requestSeek: (target: SeekTarget, options?: SeekOptions) => void;
 };
 
 // The nonce makes asking for the same target twice (click the same slot again) a new
@@ -25,6 +35,7 @@ export const usePreviewStore = create<PreviewStore>((set, get) => ({
       seekRequest: {
         target,
         pause: options?.pause === true,
+        onlyIfOutside: options?.onlyIfOutside === true,
         nonce: (get().seekRequest?.nonce ?? 0) + 1,
       },
     });

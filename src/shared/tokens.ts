@@ -42,3 +42,44 @@ export function resolveTokens(
 
   return { text: resolved, unknownTokens: unknown };
 }
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The inverse of resolveTokens, for "Save to bank": editor text holds the resolved product
+// name, the bank should hold the token. The full name becomes {full} and the short name
+// {product}; with no short name the full name becomes {product}. One pass over a pattern
+// that tries the longer name first, so a short name inside the full name never splits it.
+// Case-insensitive, whole words only (a name cannot start or end inside a longer word);
+// everything else is left as it is.
+export function tokenizeProductNames(
+  text: string,
+  product: TokenProduct,
+): string {
+  const full = product.fullName.trim();
+  const shortTrimmed = product.shortName?.trim() ?? "";
+  const hasShort =
+    shortTrimmed !== "" && shortTrimmed.toLowerCase() !== full.toLowerCase();
+
+  const entries: { name: string; token: string }[] = [];
+  if (full !== "") {
+    entries.push({ name: full, token: hasShort ? "{full}" : "{product}" });
+  }
+  if (hasShort) {
+    entries.push({ name: shortTrimmed, token: "{product}" });
+  }
+  if (entries.length === 0) {
+    return text;
+  }
+  entries.sort((a, b) => b.name.length - a.name.length);
+
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{N}_])(?:${entries.map((e) => escapeRegExp(e.name)).join("|")})(?![\\p{L}\\p{N}_])`,
+    "giu",
+  );
+  return text.replace(pattern, (match) => {
+    const lower = match.toLowerCase();
+    return entries.find((e) => e.name.toLowerCase() === lower)?.token ?? match;
+  });
+}

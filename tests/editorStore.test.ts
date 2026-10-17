@@ -662,3 +662,126 @@ describe("setTrim", () => {
     expect(lastSaved().clips[0].trimStart).toBe(1);
   });
 });
+
+describe("clip controls and captions", () => {
+  const lastSaved = () => ctx.state.saves.at(-1)!;
+  const bankCaption = (id = "c1") =>
+    ({
+      id,
+      text: "{product} changed my whole wardrobe",
+      slot: "before",
+      productId: "p1",
+    }) as unknown as import("../src/shared/library").Caption;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("zoom and mute save at once", async () => {
+    await startWithClip("before", 12);
+    const saves = ctx.state.saves.length;
+    editor().setZoom("before", true);
+    editor().setMuted("broll", false);
+    await editor().flush();
+    expect(ctx.state.saves).toHaveLength(saves + 2);
+    expect(lastSaved().clips[0].zoom).toBe("slow-push");
+    expect(lastSaved().clips[2].muted).toBe(false);
+  });
+
+  it("a pick stores the resolved text and its source, and touches no caption API", async () => {
+    await startWithClip("before", 12);
+    editor().pickCaption(
+      "before",
+      bankCaption(),
+      "the 501s changed my wardrobe",
+    );
+    await editor().flush();
+    expect(lastSaved().clips[0].caption).toEqual({
+      text: "the 501s changed my wardrobe",
+      sourceCaptionId: "c1",
+      style: "outline",
+      position: "middle",
+    });
+    expect(Object.keys(ctx.api)).not.toContain("captions");
+  });
+
+  it("typing updates the draft at once and saves once after the pause", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    const saves = ctx.state.saves.length;
+    for (const text of ["h", "he", "hel", "hello"]) {
+      editor().setCaptionText("before", text);
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(editor().draft!.clips[0].caption?.text).toBe("hello");
+    expect(ctx.state.saves).toHaveLength(saves);
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS);
+    await editor().flush();
+    expect(ctx.state.saves).toHaveLength(saves + 1);
+    expect(lastSaved().clips[0].caption?.text).toBe("hello");
+  });
+
+  it("type, then close within the debounce window keeps the text", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setCaptionText("before", "do not lose me");
+    await editor().closeDraft();
+    expect(lastSaved().clips[0].caption?.text).toBe("do not lose me");
+    const saves = ctx.state.saves.length;
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS * 3);
+    expect(ctx.state.saves).toHaveLength(saves);
+  });
+
+  it("flush and a library switch save typed text first", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setCaptionText("before", "one");
+    await editor().flush();
+    expect(lastSaved().clips[0].caption?.text).toBe("one");
+    editor().setCaptionText("before", "two");
+    await editor().beforeLibrarySwitch();
+    expect(lastSaved().clips[0].caption?.text).toBe("two");
+  });
+
+  it("a click on a toggle right after typing saves the typed text too", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setCaptionText("before", "typed");
+    editor().setZoom("before", true);
+    await editor().flush();
+    expect(lastSaved().clips[0]).toMatchObject({
+      zoom: "slow-push",
+      caption: { text: "typed" },
+    });
+    const saves = ctx.state.saves.length;
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS * 3);
+    expect(ctx.state.saves).toHaveLength(saves);
+  });
+
+  it("look, adopt and clear", async () => {
+    await startWithClip("before", 12);
+    editor().setCaptionLook("before", { style: "box" });
+    expect(editor().draft!.clips[0].caption).toBeNull();
+    editor().pickCaption("before", bankCaption(), "hi");
+    editor().setCaptionLook("before", { style: "box", position: "top" });
+    editor().adoptCaptionSource("before", "c2");
+    expect(editor().draft!.clips[0].caption).toEqual({
+      text: "hi",
+      sourceCaptionId: "c2",
+      style: "box",
+      position: "top",
+    });
+    editor().clearCaption("before");
+    await editor().flush();
+    expect(lastSaved().clips[0].caption).toBeNull();
+  });
+
+  it("ignores edits while a library switch is under way", async () => {
+    await startWithClip("before", 12);
+    await editor().beforeLibrarySwitch();
+    editor().setZoom("before", true);
+    editor().setCaptionText("before", "late");
+    expect(editor().draft!.clips[0].zoom).toBe("none");
+    expect(editor().draft!.clips[0].caption).toBeNull();
+  });
+});
