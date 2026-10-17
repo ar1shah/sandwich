@@ -9,6 +9,7 @@ import {
   bundleRemotionProject,
   getPrebuiltRemotionBundlePath,
 } from "./src/main/render/remotion-bundle";
+import { getBetterSqlitePrebuilds } from "./src/main/db/prebuilds";
 import { getFfTarget, PACKAGED_FF_DIR } from "./src/main/media/binaries";
 import { ensureFfBinaries } from "./scripts/ffmpeg/fetch";
 
@@ -21,6 +22,9 @@ const PACKAGE_BROWSER_ENV_VAR = "REMOTION_ELECTRON_PACKAGE_BROWSER";
 // no first-run download, no network dependency. Set the variable to "false" to skip it
 // for a quick local build. See DECISIONS for the size tradeoff.
 const shouldPackageBrowser = process.env[PACKAGE_BROWSER_ENV_VAR] !== "false";
+
+// better-sqlite3's native binary must live outside app.asar (golden rule 7).
+const SQLITE_PREBUILDS_DIR = "node_modules/better-sqlite3/prebuilds";
 
 const DARWIN_UNIVERSAL_ARCH_FILES =
   "Contents/Resources/app.asar.unpacked/node_modules/@remotion/compositor-darwin-*/**";
@@ -188,12 +192,44 @@ async function stageFfBinaries({
   await cp(source, destination, { recursive: true });
 }
 
+// The Forge Vite plugin leaves node_modules out of the app, so better-sqlite3 (external in
+// vite.main.config.ts) is staged by hand: package.json + lib/ (its exports map and JS) and
+// only the prebuilds/<platform>-<arch>.node file(s) for the target. lib/binding.js loads
+// ../prebuilds/<platform>-<arch>.node relative to itself, so this layout is exact.
+// node-addon-api is a compile-time dependency and is not needed.
+async function stageBetterSqlite3({
+  arch,
+  buildPath,
+  platform,
+}: {
+  arch: string;
+  buildPath: string;
+  platform: string;
+}): Promise<void> {
+  const packageJson = require.resolve("better-sqlite3/package.json", {
+    paths: [process.cwd()],
+  });
+  const source = path.dirname(packageJson);
+  const destination = path.join(buildPath, "node_modules", "better-sqlite3");
+  await mkdir(path.join(destination, "prebuilds"), { recursive: true });
+  await cp(packageJson, path.join(destination, "package.json"));
+  await cp(path.join(source, "lib"), path.join(destination, "lib"), {
+    recursive: true,
+  });
+  for (const file of getBetterSqlitePrebuilds({ arch, platform })) {
+    await cp(
+      path.join(source, "prebuilds", file),
+      path.join(destination, "prebuilds", file),
+    );
+  }
+}
+
 const config = {
   packagerConfig: {
     asar: {
       unpackDir: shouldPackageBrowser
-        ? `{node_modules/@remotion/compositor-*,remotion-browser,${PACKAGED_FF_DIR}}`
-        : `{node_modules/@remotion/compositor-*,${PACKAGED_FF_DIR}}`,
+        ? `{node_modules/@remotion/compositor-*,remotion-browser,${PACKAGED_FF_DIR},${SQLITE_PREBUILDS_DIR}}`
+        : `{node_modules/@remotion/compositor-*,${PACKAGED_FF_DIR},${SQLITE_PREBUILDS_DIR}}`,
     },
     osxUniversal: {
       // These compositor binaries are already architecture-specific and should not be
@@ -239,6 +275,12 @@ const config = {
       });
 
       await stageFfBinaries({
+        arch,
+        buildPath,
+        platform,
+      });
+
+      await stageBetterSqlite3({
         arch,
         buildPath,
         platform,

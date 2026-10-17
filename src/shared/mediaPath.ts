@@ -35,6 +35,17 @@ export type DecodedSegments =
 // ":" blocks Windows drive letters and NTFS alternate data streams.
 const FORBIDDEN_SEGMENT_CHARS = /[\\\0:/]/;
 
+// The one rule for a single decoded path segment. Shared with libraryPaths.ts so the
+// media server and the database path helpers reject exactly the same inputs.
+export function isSafePathSegment(segment: string): boolean {
+  return (
+    segment !== "" &&
+    segment !== "." &&
+    segment !== ".." &&
+    !FORBIDDEN_SEGMENT_CHARS.test(segment)
+  );
+}
+
 export function decodeMediaSegments(rawSegments: string[]): DecodedSegments {
   if (rawSegments.length === 0) {
     return { ok: false, reason: "forbidden" };
@@ -47,12 +58,7 @@ export function decodeMediaSegments(rawSegments: string[]): DecodedSegments {
     } catch {
       return { ok: false, reason: "bad-encoding" };
     }
-    if (
-      decoded === "" ||
-      decoded === "." ||
-      decoded === ".." ||
-      FORBIDDEN_SEGMENT_CHARS.test(decoded)
-    ) {
+    if (!isSafePathSegment(decoded)) {
       return { ok: false, reason: "forbidden" };
     }
     segments.push(decoded);

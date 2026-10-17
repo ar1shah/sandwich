@@ -9,7 +9,8 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ["@remotion/bundler"],
+      // Native addon: loaded from node_modules (dev) or the staged copy (packaged), never bundled.
+      external: ["@remotion/bundler", "better-sqlite3"],
     },
   },
 });

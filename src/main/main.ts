@@ -1,10 +1,21 @@
-import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  type IpcMainInvokeEvent,
+} from "electron";
 import path from "node:path";
 import { formatCapabilityReport } from "../shared/capabilitiesParse";
+import { APP_VERSION_CHANNEL } from "../shared/ipc";
+import { DEFAULT_LIBRARY_FOLDER_NAME } from "../shared/library";
+import { registerLibraryIpc } from "./ipc/library";
 import {
-  APP_VERSION_CHANNEL,
-  LIBRARY_MEDIA_BASE_URL_CHANNEL,
-} from "../shared/ipc";
+  getDbCheckTestArgs,
+  runDbCheckTest,
+} from "./library/db-check-test-mode";
+import { createLibraryManager } from "./library/libraryManager";
+import { createSettingsStore } from "./library/settings";
 import { resolveFfPaths } from "./media/binaries";
 import { getFfCapabilities } from "./media/capabilities";
 import { startMediaServer, type MediaServer } from "./media/mediaServer";
@@ -16,6 +27,23 @@ import {
 let mainWindow: BrowserWindow | null = null;
 // `Sandwich --render-recipe <recipe> <out.mp4>`: render once without a window, then exit.
 const renderRecipeTestArgs = getRenderRecipeTestArgs(process.argv);
+// `Sandwich --db-check <dir>`: open a library, round-trip a row, then exit.
+const dbCheckTestArgs = getDbCheckTestArgs(process.argv);
+const headlessTestMode =
+  renderRecipeTestArgs !== null || dbCheckTestArgs !== null;
+
+// Must run before the app is ready. Unpackaged runs get their own userData so a dev build
+// with newer migrations can never open (and migrate forward) the real library that the
+// packaged app uses. SANDWICH_USER_DATA overrides both, for tests and fresh-launch checks.
+function configureUserDataPath(): void {
+  const override = process.env.SANDWICH_USER_DATA;
+  if (override) {
+    app.setPath("userData", path.resolve(override));
+  } else if (!app.isPackaged) {
+    app.setPath("userData", path.join(app.getPath("appData"), "Sandwich-dev"));
+  }
+}
+configureUserDataPath();
 
 if (app.isPackaged) {
   process.chdir(app.getPath("userData"));
@@ -77,10 +105,31 @@ ipcMain.handle(APP_VERSION_CHANNEL, (event: IpcMainInvokeEvent) => {
   return app.getVersion();
 });
 
-// App-wide media server. Dev serves fixtures/; packaged builds have no library root
-// until step 2.1, so requests get 503. 2.1 only changes what getRoot returns.
+const libraryManager = createLibraryManager({
+  settings: createSettingsStore(
+    path.join(app.getPath("userData"), "settings.json"),
+  ),
+  // ~/Movies/SandwichLibrary on macOS, the Videos folder on Windows.
+  defaultPath: path.join(app.getPath("videos"), DEFAULT_LIBRARY_FOLDER_NAME),
+  pickFolder: async () => {
+    const options = {
+      title: "Choose or create your Sandwich library folder",
+      properties: ["openDirectory", "createDirectory"] as (
+        | "openDirectory"
+        | "createDirectory"
+      )[],
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  },
+});
+
+// App-wide media server. Serves the active library; with no library yet requests get 503.
+// The root is read per request, so switching libraries re-roots it without a restart.
 function getLibraryRoot(): string | null {
-  return app.isPackaged ? null : path.join(app.getAppPath(), "fixtures");
+  return libraryManager.getRoot();
 }
 
 let mediaServerPromise: Promise<MediaServer> | null = null;
@@ -98,16 +147,15 @@ function ensureMediaServer(): Promise<MediaServer> {
   return mediaServerPromise;
 }
 
-ipcMain.handle(
-  LIBRARY_MEDIA_BASE_URL_CHANNEL,
-  async (event: IpcMainInvokeEvent) => {
-    assertTrustedSender(event);
-    return (await ensureMediaServer()).baseUrl;
-  },
-);
+registerLibraryIpc({
+  manager: libraryManager,
+  getMediaBaseUrl: async () => (await ensureMediaServer()).baseUrl,
+  assertTrustedSender,
+});
 
 app.on("will-quit", () => {
   void mediaServer?.close();
+  libraryManager.close();
 });
 
 app.on("ready", () => {
@@ -115,7 +163,16 @@ app.on("ready", () => {
     void runRenderRecipeTest(renderRecipeTestArgs);
     return;
   }
+  if (dbCheckTestArgs) {
+    void runDbCheckTest(dbCheckTestArgs);
+    return;
+  }
 
+  void libraryManager.init().catch((error: unknown) => {
+    console.error(
+      `[library] failed to open: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
   void ensureMediaServer().catch((error: unknown) => {
     console.error(
       `[media] server failed to start: ${error instanceof Error ? error.message : String(error)}`,
@@ -132,7 +189,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
-  if (renderRecipeTestArgs) {
+  if (headlessTestMode) {
     return;
   }
 
