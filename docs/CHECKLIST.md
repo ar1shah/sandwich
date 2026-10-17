@@ -55,8 +55,8 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 
 ## Phase 3: Manual mode (MVP)
 - [x] 3.1 Editor shell (slots, import, b-roll pick, autosave drafts, settings)
-  - [ ] You: building a draft with real clips feels quick and obvious
-  - [ ] You: quit mid-draft and reopen, it comes back; Close draft then reopen shows the grid; a changed default length applies to the next draft
+  - [x] You: building a draft with real clips feels quick and obvious
+  - [x] You: quit mid-draft and reopen, it comes back; Close draft then reopen shows the grid; a changed default length applies to the next draft
 - [ ] 3.2 Live preview (Player, safe-zone overlay, length indicator)
 - [ ] 3.3 Trim panel (filmstrip window, snapping, keyboard)
 - [ ] 3.4 Clip controls (zoom, mute, caption pick/edit/style/save to bank)
