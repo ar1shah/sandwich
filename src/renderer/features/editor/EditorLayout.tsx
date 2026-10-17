@@ -4,14 +4,14 @@ import { BrollPicker } from "../broll/BrollPicker";
 import { productImageUrl } from "../products/productImageUrl";
 import { useProductsStore } from "../products/productsStore";
 import { PreviewPanel } from "../preview/PreviewPanel";
+import { ClipPanel } from "../trim/ClipPanel";
 import { useEditorStore } from "./editorStore";
-import { SLOT_LABELS, SlotCard } from "./SlotCard";
+import { SlotCard } from "./SlotCard";
 
-// Three columns: slots (left), preview (center), clip panel (right, steps 3.3 and 3.4).
+// Three columns: slots (left), preview (center), clip panel (right: trim in 3.3, then 3.4).
 export const EditorLayout: React.FC = () => {
   const draft = useEditorStore((s) => s.draft);
   const product = useEditorStore((s) => s.product);
-  const selectedSlot = useEditorStore((s) => s.selectedSlot);
   const notice = useEditorStore((s) => s.notice);
   const saveError = useEditorStore((s) => s.saveError);
   const closeDraft = useEditorStore((s) => s.closeDraft);
@@ -63,7 +63,7 @@ export const EditorLayout: React.FC = () => {
         </p>
       )}
 
-      <div className="mt-4 grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)_280px] gap-6">
+      <div className="mt-4 grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_300px] min-[1300px]:grid-cols-[320px_minmax(0,1fr)_360px] gap-6">
         <ul aria-label="Slots" className="space-y-3 overflow-y-auto">
           {SLOTS.map((slot) => (
             <SlotCard
@@ -77,19 +77,7 @@ export const EditorLayout: React.FC = () => {
 
         <PreviewPanel />
 
-        <aside
-          aria-label="Clip panel"
-          className="rounded-xl border border-edge bg-panel p-4"
-        >
-          <h2 className="text-sm font-medium">
-            {selectedSlot ? SLOT_LABELS[selectedSlot] : "Clip"}
-          </h2>
-          <p className="mt-2 text-sm text-app-muted">
-            {selectedSlot
-              ? "Trim, zoom, mute and captions for this clip arrive in the next steps."
-              : "Select a slot to edit its clip."}
-          </p>
-        </aside>
+        <ClipPanel />
       </div>
 
       {pickingBroll && (

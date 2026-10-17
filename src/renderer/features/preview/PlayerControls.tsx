@@ -50,7 +50,10 @@ export const PlayerControls: React.FC<{
   const shown = Math.min(frame, last);
 
   return (
-    <div className="flex items-center gap-3" data-testid="player-controls">
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-2"
+      data-testid="player-controls"
+    >
       <button
         type="button"
         className={BUTTON}
@@ -63,7 +66,7 @@ export const PlayerControls: React.FC<{
         type="range"
         aria-label="Scrub preview"
         data-testid="scrubber"
-        className="min-w-0 flex-1 accent-brand"
+        className="order-last w-full min-w-0 accent-brand"
         min={0}
         max={last}
         step={1}
