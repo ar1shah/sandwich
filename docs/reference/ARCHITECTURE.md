@@ -28,6 +28,7 @@ Think of the app as a restaurant:
 ## 2. Processes and responsibilities
 
 ### Main (`src/main/`)
+- `products/` : `productService.ts` owns product rows plus `products/<id>/image.jpg` (stage in `cache/tmp`, then rename; see DECISIONS #30). `ipc/products.ts` validates with zod and returns `{ ok, ... }` results for user-fixable failures.
 - `ipc/` : one file per domain (`products.ts`, `broll.ts`, `captions.ts`, `videos.ts`, `jobs.ts`, `library.ts`). Each handler validates input with zod, calls a service, returns plain JSON.
 - `library/` : settings.json in `userData`, folder inspection (sync-folder warning, existing library, schema too new), the library manager (two-phase choose/activate), headless `--db-check`.
 - `db/` : connection, migrations runner, repositories. Migrations are `db/migrations/NNN_name.sql`, applied in order inside a transaction, tracked in a `schema_migrations` table.

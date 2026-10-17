@@ -6,6 +6,12 @@ import type {
   LibraryState,
 } from "./library";
 import type { JobEvent, JobInfo } from "./jobs";
+import type {
+  CreateProductRequest,
+  ProductResult,
+  ProductSummary,
+  UpdateProductRequest,
+} from "./products";
 
 export const APP_VERSION_CHANNEL = "app:version";
 export const LIBRARY_MEDIA_BASE_URL_CHANNEL = "library:mediaBaseUrl";
@@ -15,6 +21,12 @@ export const LIBRARY_ACTIVATE_CHANNEL = "library:activate";
 export const JOBS_LIST_CHANNEL = "jobs:list";
 export const JOBS_CANCEL_CHANNEL = "jobs:cancel";
 export const MEDIA_IMPORT_UGC_CHANNEL = "media:importUgc";
+export const PRODUCTS_LIST_CHANNEL = "products:list";
+export const PRODUCTS_CREATE_CHANNEL = "products:create";
+export const PRODUCTS_UPDATE_CHANNEL = "products:update";
+export const PRODUCTS_REMOVE_CHANNEL = "products:remove";
+export const PRODUCTS_ARCHIVE_CHANNEL = "products:archive";
+export const PRODUCTS_TOUCH_CHANNEL = "products:touchLastUsed";
 // Main -> renderer. One channel for every job state change and progress tick.
 export const JOB_EVENT_CHANNEL = "job:event";
 // Dev builds only (handler not registered when packaged).
@@ -46,6 +58,24 @@ export type SandwichApi = {
   media: {
     // Queues one importClip job per file (mp4, mov, m4v; any letter case). Returns job ids.
     importUgc: (filePaths: string[]) => Promise<string[]>;
+  };
+  products: {
+    // Every product, archived ones included (their slugs still count), with the counts the
+    // delete dialog shows. Newest-used first; the UI re-sorts and filters.
+    list: () => Promise<ProductSummary[]>;
+    // Failures the user can fix (taken slug, unreadable image) come back as { ok: false }
+    // with the form field to show them under; only bugs reject.
+    create: (
+      input: CreateProductRequest,
+    ) => Promise<ProductResult<ProductSummary>>;
+    update: (
+      input: UpdateProductRequest,
+    ) => Promise<ProductResult<ProductSummary>>;
+    // Hard delete. { ok: false, code: "has-videos" } means archive it instead.
+    remove: (id: string) => Promise<ProductResult<true>>;
+    archive: (id: string) => Promise<ProductResult<ProductSummary>>;
+    // Call when a product is picked for a video, so it sorts first next time.
+    touchLastUsed: (id: string) => Promise<ProductResult<ProductSummary>>;
   };
   dev: {
     // Queues every clip in the project's fixtures/ folder. Rejects in packaged builds.

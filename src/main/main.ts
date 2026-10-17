@@ -6,6 +6,8 @@ import {
   type IpcMainInvokeEvent,
 } from "electron";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { isAppPageUrl } from "../shared/appNavigation";
 import { formatCapabilityReport } from "../shared/capabilitiesParse";
 import { APP_VERSION_CHANNEL, JOB_EVENT_CHANNEL } from "../shared/ipc";
 import { createJobEventThrottle } from "../shared/jobEventThrottle";
@@ -13,6 +15,7 @@ import { DEFAULT_LIBRARY_FOLDER_NAME } from "../shared/library";
 import { registerJobsIpc } from "./ipc/jobs";
 import { registerLibraryIpc } from "./ipc/library";
 import { registerMediaIpc } from "./ipc/media";
+import { registerProductsIpc } from "./ipc/products";
 import { createJobService } from "./jobs";
 import { createFfmpegSteps } from "./jobs/importClip";
 import {
@@ -22,6 +25,8 @@ import {
 import { createLibraryManager } from "./library/libraryManager";
 import { createSettingsStore } from "./library/settings";
 import { resolveFfPaths, type FfPaths } from "./media/binaries";
+import { processProductImage } from "./media/productImage";
+import { createProductService } from "./products/productService";
 import { getFfCapabilities } from "./media/capabilities";
 import { startMediaServer, type MediaServer } from "./media/mediaServer";
 import {
@@ -60,6 +65,16 @@ function assertTrustedSender(event: IpcMainInvokeEvent): void {
   }
 }
 
+// The one page the window may show: the dev server in dev, the bundled index.html packaged.
+function appPageUrl(): string {
+  return (
+    MAIN_WINDOW_VITE_DEV_SERVER_URL ??
+    pathToFileURL(
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+    ).toString()
+  );
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -76,6 +91,13 @@ function createWindow(): void {
   });
   mainWindow.webContents.setWindowOpenHandler(() => {
     return { action: "deny" };
+  });
+  // A file dropped outside a drop zone, or a stray link, must not replace the app.
+  const allowedUrl = appPageUrl();
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!isAppPageUrl(url, allowedUrl)) {
+      event.preventDefault();
+    }
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -192,6 +214,17 @@ registerLibraryIpc({
 });
 
 registerJobsIpc({ jobs: jobService, assertTrustedSender });
+
+const productService = createProductService({
+  getLibrary: () => {
+    const root = libraryManager.getRoot();
+    const repos = libraryManager.getRepos();
+    return root && repos ? { root, repos } : null;
+  },
+  processImage: (input, output) =>
+    processProductImage(input, output, { ffPaths: getAppFfPaths() }),
+});
+registerProductsIpc({ products: productService, assertTrustedSender });
 registerMediaIpc({
   jobs: jobService,
   assertTrustedSender,

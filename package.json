@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "lint": "eslint . && tsc --noEmit",
     "format": "prettier --write .",
     "make": "electron-forge package",
