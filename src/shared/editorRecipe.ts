@@ -73,6 +73,21 @@ export function clearClip(
   );
 }
 
+// Sets a slot's trim window (the caller clamps it with trimMath).
+export function applyTrim(
+  recipe: Recipe,
+  slot: Slot,
+  trim: { start: number; duration: number },
+  now: Date,
+): Recipe {
+  return replaceClip(
+    recipe,
+    slot,
+    { ...clipOf(recipe, slot), trimStart: trim.start, duration: trim.duration },
+    now,
+  );
+}
+
 export function draftHasMedia(recipe: Pick<Recipe, "clips">): boolean {
   return recipe.clips.some((clip) => clip.mediaPath !== "");
 }

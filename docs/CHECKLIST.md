@@ -60,7 +60,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 3.2 Live preview (Player, safe-zone overlay, length indicator)
   - [x] You: preview plays smoothly with real clips
   - [x] You: safe-zone toggle works
-- [ ] 3.3 Trim panel (filmstrip window, snapping, keyboard)
+- [x] 3.3 Trim panel (filmstrip window, snapping, keyboard)
+  - [x] You: trimming a long real creator clip to the best 3 seconds takes seconds, and the preview confirms it
+  - [x] You: it feels like trimming an Instagram story, not fighting a timeline
 - [ ] 3.4 Clip controls (zoom, mute, caption pick/edit/style/save to bank)
 - [ ] 3.5 Export (naming, verify, sidecar, Show in Finder)
 - [ ] 3.6 History + hardening + packaged run-through + USER_GUIDE.md

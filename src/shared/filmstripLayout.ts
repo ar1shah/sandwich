@@ -48,3 +48,47 @@ export function buildFilmstripFilter(layout: FilmstripLayout): string {
 export function thumbSeekTime(duration: number): number {
   return Math.max(0, duration * 0.1);
 }
+
+export type FilmstripTile = {
+  left: number; // px from the left of the track
+  width: number; // visible px (the last cell is clipped by the track)
+  offsetX: number; // px shift of the shared sprite inside the cell (<= 0)
+};
+
+export type FilmstripTiles = {
+  tiles: FilmstripTile[];
+  // Draw the sprite at this size in every cell (background-size).
+  spriteWidth: number;
+  spriteHeight: number;
+};
+
+// How the trim track shows the sprite. The sprite has ceil(duration / interval) frames, so
+// it covers up to a whole interval more than the clip and its frames are not stretched to
+// the track. Instead the track is cut into cells of a frame's natural aspect; each cell
+// shows the sprite frame sampled nearest the time under the cell's visible centre.
+export function filmstripTiles(
+  layout: FilmstripLayout,
+  clipDuration: number,
+  trackWidth: number,
+  trackHeight: number,
+): FilmstripTiles {
+  const cell = (trackHeight * layout.frameWidth) / layout.frameHeight;
+  const spriteWidth = layout.frameCount * cell;
+  if (!(trackWidth > 0) || !(trackHeight > 0) || !(clipDuration > 0)) {
+    return { tiles: [], spriteWidth, spriteHeight: trackHeight };
+  }
+  const count = Math.ceil(trackWidth / cell - 1e-9);
+  const tiles: FilmstripTile[] = [];
+  for (let i = 0; i < count; i++) {
+    const left = i * cell;
+    const width = Math.min(cell, trackWidth - left);
+    const centerTime = ((left + width / 2) / trackWidth) * clipDuration;
+    // Frame k was sampled at k * interval.
+    const index = Math.min(
+      layout.frameCount - 1,
+      Math.max(0, Math.round(centerTime / layout.interval)),
+    );
+    tiles.push({ left, width, offsetX: -index * cell });
+  }
+  return { tiles, spriteWidth, spriteHeight: trackHeight };
+}

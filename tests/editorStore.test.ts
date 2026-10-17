@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useEditorStore } from "../src/renderer/features/editor/editorStore";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  TRIM_SAVE_DEBOUNCE_MS,
+  useEditorStore,
+} from "../src/renderer/features/editor/editorStore";
 import { useJobsStore } from "../src/renderer/features/jobs/jobsStore";
 import { useProductsStore } from "../src/renderer/features/products/productsStore";
 import { useSettingsStore } from "../src/renderer/features/settings/settingsStore";
@@ -535,5 +538,127 @@ describe("library switch", () => {
     expect(ctx.state.saves.at(-1)!.clips[2].mediaPath).toBe(
       "clips/2026-10/b1.mp4",
     );
+  });
+});
+
+describe("setTrim", () => {
+  const lastSaved = () => ctx.state.saves.at(-1)!;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("changes the trim and clamps it to the clip", async () => {
+    await startWithClip("before", 12);
+    editor().setTrim("before", { start: 20, duration: 3 }, "none");
+    expect(editor().draft!.clips[0]).toMatchObject({
+      trimStart: 9,
+      duration: 3,
+    });
+  });
+
+  it("does nothing when the result equals the current trim", async () => {
+    await startWithClip("before", 12);
+    const before = editor().draft;
+    const saves = ctx.state.saves.length;
+    editor().setTrim("before", { start: 0, duration: 3 }, "now");
+    editor().setTrim("before", { start: 0, duration: 3.0000001 }, "now");
+    expect(editor().draft).toBe(before);
+    await editor().flush();
+    expect(ctx.state.saves).toHaveLength(saves);
+  });
+
+  it("ignores an empty slot", async () => {
+    await editor().startDraft(PRODUCT);
+    const before = editor().draft;
+    editor().setTrim("after", { start: 1, duration: 2 }, "now");
+    expect(editor().draft).toBe(before);
+  });
+
+  it("saves nothing during a drag and once when it finishes", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    const saves = ctx.state.saves.length;
+    for (let i = 1; i <= 20; i++) {
+      editor().setTrim("before", { start: i * 0.1, duration: 3 }, "none");
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(ctx.state.saves).toHaveLength(saves);
+    editor().finishTrim();
+    await vi.advanceTimersByTimeAsync(0);
+    await editor().flush();
+    expect(ctx.state.saves).toHaveLength(saves + 1);
+    expect(lastSaved().clips[0].trimStart).toBe(2);
+    // A drag that changed nothing does not save.
+    editor().finishTrim();
+    await editor().flush();
+    expect(ctx.state.saves).toHaveLength(saves + 1);
+  });
+
+  it("saves a burst of key nudges once, after the debounce", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    const saves = ctx.state.saves.length;
+    for (let i = 1; i <= 5; i++) {
+      editor().setTrim("before", { start: i * 0.1, duration: 3 }, "debounced");
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(ctx.state.saves).toHaveLength(saves);
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS);
+    await editor().flush();
+    expect(ctx.state.saves).toHaveLength(saves + 1);
+    expect(lastSaved().clips[0].trimStart).toBe(0.5);
+  });
+
+  it("a debounced trim followed by Remove within the window does not bring the clip back", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setTrim("before", { start: 1, duration: 3 }, "debounced");
+    editor().clearSlot("before");
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS * 3);
+    await editor().flush();
+    expect(lastSaved().clips[0].mediaPath).toBe("");
+    // The cleared draft was saved once by clearSlot, never again by the timer.
+    expect(
+      ctx.state.saves.filter((recipe) => recipe.clips[0].mediaPath !== ""),
+    ).toHaveLength(1);
+    expect(editor().draft!.clips[0].mediaPath).toBe("");
+  });
+
+  it("saves the draft as it is when the timer fires, not as it was scheduled", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setTrim("before", { start: 1, duration: 3 }, "debounced");
+    editor().setTrim("before", { start: 2, duration: 3 }, "debounced");
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS);
+    await editor().flush();
+    expect(lastSaved().clips[0].trimStart).toBe(2);
+  });
+
+  it("flush saves a pending trim at once", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setTrim("before", { start: 1, duration: 3 }, "debounced");
+    await editor().flush();
+    expect(lastSaved().clips[0].trimStart).toBe(1);
+  });
+
+  it("closing the draft saves a pending trim and drops the timer", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setTrim("before", { start: 1, duration: 3 }, "debounced");
+    await editor().closeDraft();
+    expect(lastSaved().clips[0].trimStart).toBe(1);
+    const saves = ctx.state.saves.length;
+    await vi.advanceTimersByTimeAsync(TRIM_SAVE_DEBOUNCE_MS * 3);
+    expect(ctx.state.saves).toHaveLength(saves);
+  });
+
+  it("a library switch saves a pending trim first", async () => {
+    await startWithClip("before", 12);
+    vi.useFakeTimers();
+    editor().setTrim("before", { start: 1, duration: 3 }, "debounced");
+    await editor().beforeLibrarySwitch();
+    expect(lastSaved().clips[0].trimStart).toBe(1);
   });
 });

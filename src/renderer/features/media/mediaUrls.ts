@@ -18,3 +18,12 @@ export function mediaVideoUrl(
 ): string | null {
   return mediaBase ? mediaUrl(mediaBase, media.path) : null;
 }
+
+export function mediaFilmstripUrl(
+  mediaBase: string | null,
+  media: Pick<Media, "filmstripPath">,
+): string | null {
+  return mediaBase && media.filmstripPath
+    ? mediaUrl(mediaBase, media.filmstripPath)
+    : null;
+}

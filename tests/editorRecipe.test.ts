@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyClipMedia,
+  applyTrim,
   clearClip,
   draftHasMedia,
   filledSlots,
@@ -157,5 +158,29 @@ describe("slotStatus", () => {
     expect(
       slotStatus(empty, { importing: true, error: true, missing: false }),
     ).toBe("importing");
+  });
+});
+
+describe("applyTrim", () => {
+  it("sets the trim window of one slot and stamps updatedAt", () => {
+    const filled = applyClipMedia(
+      emptyRecipe(),
+      "before",
+      media(12),
+      DEFAULT_CLIP_DURATIONS,
+      NOW,
+    );
+    const next = applyTrim(
+      filled,
+      "before",
+      { start: 2.5, duration: 4 },
+      later,
+    );
+    expect(next.clips[0]).toMatchObject({ trimStart: 2.5, duration: 4 });
+    expect(next.clips[1]).toBe(filled.clips[1]);
+    expect(next.updatedAt).toBe(later.toISOString());
+    expect(RecipeSchema.safeParse(next).success).toBe(true);
+    // The input is untouched.
+    expect(filled.clips[0].trimStart).toBe(0);
   });
 });

@@ -69,23 +69,37 @@ export const PreviewPanel: React.FC = () => {
     [draft],
   );
 
-  // Seek requests from the slot cards (and, in 3.3, the trim drag). Requests made before
-  // this panel mounted are not replayed.
+  // Seek requests from the slot cards and the trim drag. Requests made before this panel
+  // mounted are not replayed. The timeline is rebuilt from the store's draft right now,
+  // not taken from this render: a trim change and its seek can land in different renders,
+  // and the end of a clip depends on the new length.
   const handled = useRef(usePreviewStore.getState().seekRequest?.nonce ?? 0);
   const seekRequest = usePreviewStore((s) => s.seekRequest);
   useEffect(() => {
-    if (!seekRequest || seekRequest.nonce === handled.current || !timeline) {
+    const latest = useEditorStore.getState().draft;
+    if (!seekRequest || seekRequest.nonce === handled.current || !latest) {
       return;
     }
     handled.current = seekRequest.nonce;
-    const frame =
-      "slot" in seekRequest.target
-        ? slotStartFrame(timeline, seekRequest.target.slot)
-        : seekRequest.target.frame;
+    const current = buildTimeline(latest, latest.output.fps);
+    const { target } = seekRequest;
+    let frame: number;
+    if ("slot" in target) {
+      const clip = current.clips.find((entry) => entry.slot === target.slot);
+      frame =
+        target.edge === "end" && clip
+          ? clip.from + clip.durationInFrames - 1
+          : slotStartFrame(current, target.slot);
+    } else {
+      frame = target.frame;
+    }
+    if (seekRequest.pause) {
+      player.current?.pause();
+    }
     player.current?.seekTo(
-      Math.min(Math.max(0, Math.round(frame)), timeline.totalFrames - 1),
+      Math.min(Math.max(0, Math.round(frame)), current.totalFrames - 1),
     );
-  }, [seekRequest, timeline]);
+  }, [seekRequest]);
 
   if (!draft || !timeline) {
     return null;

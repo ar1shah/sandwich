@@ -86,9 +86,9 @@ function appPageUrl(): string {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 900,
+    width: 1440,
+    height: 900,
+    minWidth: 1100,
     minHeight: 600,
     backgroundColor: "#0f1115",
     webPreferences: {

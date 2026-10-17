@@ -124,6 +124,15 @@ export const FIXTURES: readonly FixtureSpec[] = [
     channels: 1,
     sampleRate: 44100,
   }),
+  // A long creator-style clip for the trim UI: a 3 s window on it is a few pixels wide.
+  video({
+    name: "long_45s.mp4",
+    label: "LONG 45S",
+    color: "0x7048E8",
+    tone: 330,
+    duration: 45,
+    preset: "ultrafast",
+  }),
   video({
     name: "short_1s.mp4",
     label: "SHORT 1S",

@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { parseDraftRecipe, withProductSlug } from "../../../shared/drafts";
+import { debounce } from "../../../shared/debounce";
 import {
   applyClipMedia,
+  applyTrim,
   clearClip,
   draftHasMedia,
 } from "../../../shared/editorRecipe";
@@ -19,6 +21,7 @@ import {
   type Recipe,
   type Slot,
 } from "../../../shared/recipe";
+import { clampTrim, sameTrim, type Trim } from "../../../shared/trimMath";
 import { useJobsStore } from "../jobs/jobsStore";
 import { useProductsStore } from "../products/productsStore";
 import { useSettingsStore } from "../settings/settingsStore";
@@ -26,6 +29,13 @@ import { useSettingsStore } from "../settings/settingsStore";
 export type PendingImport = { jobId: string; name: string };
 type PerSlot<T> = Partial<Record<Slot, T>>;
 type OpenResult = { ok: true } | { ok: false; message: string };
+
+// How a trim change is saved: `none` while a pointer drag is under way (the drag's end
+// saves once), `debounced` for held-key nudges, `now` for a finished edit.
+export type TrimSave = "none" | "debounced" | "now";
+
+// Held-key nudges arrive faster than they are worth saving.
+export const TRIM_SAVE_DEBOUNCE_MS = 300;
 
 export type EditorStore = {
   // The recipe being edited; null = no draft open (New Video shows the product grid).
@@ -58,6 +68,11 @@ export type EditorStore = {
   // A job reached a terminal state; applies it if it belongs to a pending slot import.
   handleJob: (job: JobInfo) => Promise<void>;
   setBroll: (media: Media) => void;
+  // Moves a slot's trim window (clamped to the clip). A change that leaves the trim as it
+  // is does nothing at all: no new draft, no save.
+  setTrim: (slot: Slot, trim: Trim, save: TrimSave) => void;
+  // A drag ended: saves once if it changed anything.
+  finishTrim: () => void;
   clearSlot: (slot: Slot) => void;
   dismissNotice: () => void;
   // Resolves when every queued save has finished.
@@ -98,6 +113,25 @@ let saveChain: Promise<void> = Promise.resolve();
 const handling = new Set<string>();
 
 export const useEditorStore = create<EditorStore>((set, get) => {
+  // True while the draft holds a trim change that no save has been queued for.
+  let trimDirty = false;
+
+  // Saves the draft as it is NOW. The debounced save calls this when its timer fires, so
+  // a recipe captured at schedule time can never overwrite a later change (a trim followed
+  // by Remove within 300 ms must not bring the clip back).
+  function saveTrimNow(): void {
+    trimSave.cancel();
+    const draft = get().draft;
+    if (!trimDirty || !draft) {
+      return;
+    }
+    trimDirty = false;
+    if (get().persisted || draftHasMedia(draft)) {
+      void queueSave(draft);
+    }
+  }
+  const trimSave = debounce(saveTrimNow, TRIM_SAVE_DEBOUNCE_MS);
+
   function cancelJob(jobId: string): void {
     void window.api.jobs.cancel(jobId).catch(() => false);
   }
@@ -155,6 +189,9 @@ export const useEditorStore = create<EditorStore>((set, get) => {
   // Applies a recipe change and saves it at once: the first clip creates the draft row,
   // later changes (including emptying a slot) keep updating it.
   function commit(next: Recipe): void {
+    // This save carries the latest draft, trim edits included.
+    trimSave.cancel();
+    trimDirty = false;
     set({ draft: next });
     if (get().persisted || draftHasMedia(next)) {
       void queueSave(next);
@@ -290,6 +327,9 @@ export const useEditorStore = create<EditorStore>((set, get) => {
 
     async closeDraft() {
       cancelAllPending();
+      // The save below carries any trim change.
+      trimSave.cancel();
+      trimDirty = false;
       const draft = get().draft;
       if (draft && (get().persisted || draftHasMedia(draft))) {
         await queueSave(draft);
@@ -419,6 +459,34 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       applyMedia("broll", media);
     },
 
+    setTrim(slot, trim, save) {
+      const draft = get().draft;
+      const clip = draft?.clips[SLOTS.indexOf(slot)];
+      if (
+        !draft ||
+        !clip ||
+        clip.mediaPath === "" ||
+        !(clip.sourceDuration > 0)
+      ) {
+        return;
+      }
+      const next = clampTrim(trim, clip.sourceDuration);
+      if (sameTrim(next, { start: clip.trimStart, duration: clip.duration })) {
+        return;
+      }
+      set({ draft: applyTrim(draft, slot, next, new Date()) });
+      trimDirty = true;
+      if (save === "now") {
+        saveTrimNow();
+      } else if (save === "debounced") {
+        trimSave();
+      }
+    },
+
+    finishTrim() {
+      saveTrimNow();
+    },
+
     clearSlot(slot) {
       const draft = get().draft;
       if (!draft) {
@@ -443,10 +511,12 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     },
 
     async flush() {
+      saveTrimNow();
       await saveChain;
     },
 
     async beforeLibrarySwitch() {
+      saveTrimNow();
       await saveChain;
       set({ switching: true });
     },
@@ -459,6 +529,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       // Main cancelled the old library's jobs; forget them here and start clean, then
       // look for a draft that was open in the new library.
       handling.clear();
+      trimSave.cancel();
+      trimDirty = false;
       set({ ...EMPTY, epoch: get().epoch + 1, switching: false });
       useSettingsStore.setState({ loaded: false });
       await get().hydrate();
