@@ -49,9 +49,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
   - [x] You: import real b-roll for each of your 3 products; hover previews are smooth
   - [x] You: horizontal or HDR b-roll looks right in thumbnails; dev b-roll picker works (arrows, Enter) in `npm run dev`
 - [x] 2.5 Caption bank (CRUD, tokens preview, bulk paste, CaptionPicker)
-  - [ ] You: bulk paste 15 real captions from winning videos
-  - [ ] You: dev caption picker works (arrows, Enter) in `npm run dev`; discard prompt appears on Escape with unsaved text
-- [ ] **Phase 2 exit test** (3 products, b-roll, 15 captions survive relaunch)
+  - [x] You: bulk paste 15 real captions from winning videos
+  - [x] You: dev caption picker works (arrows, Enter) in `npm run dev`; discard prompt appears on Escape with unsaved text
+- [x] **Phase 2 exit test** (3 products, b-roll, 15 captions survive relaunch)
 
 ## Phase 3: Manual mode (MVP)
 - [ ] 3.1 Editor shell (slots, import, b-roll pick, autosave drafts, settings)
