@@ -2,7 +2,23 @@ import { randomUUID } from "node:crypto";
 import { fileBaseName, type JobEvent, type JobInfo } from "../../shared/jobs";
 import { createJobScheduler } from "../../shared/jobScheduler";
 import type { Repos } from "../db/repos";
-import { createFfmpegSteps, importClip, type ImportSteps } from "./importClip";
+import {
+  createFfmpegSteps,
+  importClip,
+  type ImportSteps,
+  type ImportTarget,
+} from "./importClip";
+
+// A b-roll import the user can fix (the product is gone or archived), as opposed to a bug.
+export class ImportRejectedError extends Error {
+  constructor(
+    readonly code: "not-found" | "archived",
+    message: string,
+  ) {
+    super(message);
+    this.name = "ImportRejectedError";
+  }
+}
 
 export type JobServiceDeps = {
   // The active library, read when a job is enqueued (null = none open).
@@ -27,27 +43,62 @@ export function createJobService(deps: JobServiceDeps) {
   const now = deps.now ?? (() => new Date());
   const newId = deps.newId ?? (() => randomUUID());
 
-  return {
-    // Queues one importClip job per file. The library is captured now, so a job keeps
-    // writing to the library it was started in.
-    importUgc(filePaths: readonly string[]): string[] {
-      const library = deps.getLibrary();
-      if (!library) {
-        throw new Error("Open a library before importing clips.");
+  // The one place import jobs are built, so UGC and b-roll cannot drift. The library is
+  // captured now, so a job keeps writing to the library it was started in.
+  function enqueueImports(
+    target: ImportTarget,
+    filePaths: readonly string[],
+  ): string[] {
+    const library = deps.getLibrary();
+    if (!library) {
+      throw new Error("Open a library before importing clips.");
+    }
+    const { root, repos } = library;
+    if (target.kind === "broll") {
+      const product = repos.products.get(target.productId);
+      if (!product) {
+        throw new ImportRejectedError(
+          "not-found",
+          "That product no longer exists.",
+        );
       }
-      const { root, repos } = library;
-      return filePaths.map((filePath) =>
-        scheduler.enqueue({
-          type: "importClip",
-          label: `Importing ${fileBaseName(filePath)}`,
-          run: (context) =>
-            importClip(filePath, context, { root, repos, steps, now, newId }),
-        }),
-      );
-    },
+      if (product.archivedAt !== null) {
+        throw new ImportRejectedError(
+          "archived",
+          "That product is archived, so it cannot take new b-roll.",
+        );
+      }
+    }
+    return filePaths.map((filePath) =>
+      scheduler.enqueue({
+        type: "importClip",
+        label: `Importing ${fileBaseName(filePath)}`,
+        ...(target.kind === "broll" ? { productId: target.productId } : {}),
+        run: (context) =>
+          importClip(filePath, context, {
+            target,
+            root,
+            repos,
+            steps,
+            now,
+            newId,
+          }),
+      }),
+    );
+  }
+
+  return {
+    // Queues one importClip job per file. Returns the job ids.
+    importUgc: (filePaths: readonly string[]): string[] =>
+      enqueueImports({ kind: "ugc" }, filePaths),
+    // Same, into one product's b-roll library. Throws for a missing or archived product.
+    importBroll: (productId: string, filePaths: readonly string[]): string[] =>
+      enqueueImports({ kind: "broll", productId }, filePaths),
     cancel: (jobId: string): boolean => scheduler.cancel(jobId),
     cancelAll: (): Promise<void> => scheduler.cancelAll(),
     hasActive: (): boolean => scheduler.hasActive(),
+    hasActiveForProduct: (productId: string): boolean =>
+      scheduler.hasActiveForProduct(productId),
     list: (): JobInfo[] => scheduler.snapshot(),
   };
 }

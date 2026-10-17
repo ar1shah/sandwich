@@ -14,6 +14,8 @@ import { createJobEventThrottle } from "../shared/jobEventThrottle";
 import { DEFAULT_LIBRARY_FOLDER_NAME } from "../shared/library";
 import { registerJobsIpc } from "./ipc/jobs";
 import { registerLibraryIpc } from "./ipc/library";
+import { createBrollService } from "./broll/brollService";
+import { registerBrollIpc } from "./ipc/broll";
 import { registerMediaIpc } from "./ipc/media";
 import { registerProductsIpc } from "./ipc/products";
 import { createJobService } from "./jobs";
@@ -223,8 +225,21 @@ const productService = createProductService({
   },
   processImage: (input, output) =>
     processProductImage(input, output, { ffPaths: getAppFfPaths() }),
+  hasActiveJobForProduct: (productId) =>
+    jobService.hasActiveForProduct(productId),
 });
 registerProductsIpc({ products: productService, assertTrustedSender });
+registerBrollIpc({
+  broll: createBrollService({
+    getLibrary: () => {
+      const root = libraryManager.getRoot();
+      const repos = libraryManager.getRepos();
+      return root && repos ? { root, repos } : null;
+    },
+    jobs: jobService,
+  }),
+  assertTrustedSender,
+});
 registerMediaIpc({
   jobs: jobService,
   assertTrustedSender,

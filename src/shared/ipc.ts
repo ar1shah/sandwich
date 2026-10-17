@@ -4,7 +4,9 @@ import type {
   LibraryCandidate,
   LibraryChooseSource,
   LibraryState,
+  Media,
 } from "./library";
+import type { BrollResult } from "./broll";
 import type { JobEvent, JobInfo } from "./jobs";
 import type {
   CreateProductRequest,
@@ -21,6 +23,9 @@ export const LIBRARY_ACTIVATE_CHANNEL = "library:activate";
 export const JOBS_LIST_CHANNEL = "jobs:list";
 export const JOBS_CANCEL_CHANNEL = "jobs:cancel";
 export const MEDIA_IMPORT_UGC_CHANNEL = "media:importUgc";
+export const BROLL_LIST_CHANNEL = "broll:list";
+export const BROLL_IMPORT_CHANNEL = "broll:import";
+export const BROLL_REMOVE_CHANNEL = "broll:remove";
 export const PRODUCTS_LIST_CHANNEL = "products:list";
 export const PRODUCTS_CREATE_CHANNEL = "products:create";
 export const PRODUCTS_UPDATE_CHANNEL = "products:update";
@@ -46,6 +51,11 @@ export type SandwichApi = {
     // http://127.0.0.1:<port>/m/<token>; build file URLs with mediaUrl(base, relPath).
     mediaBaseUrl: () => Promise<string>;
   };
+  files: {
+    // Absolute disk paths of File objects from a drop or file input (Electron 40 removed
+    // File.path). Same order as the input; "" for a file that has no path on disk.
+    pathsFor: (files: File[]) => string[];
+  };
   jobs: {
     // Active jobs plus the most recent finished ones. Events may arrive before or after
     // this resolves: merge by job id and keep the higher `seq`.
@@ -58,6 +68,19 @@ export type SandwichApi = {
   media: {
     // Queues one importClip job per file (mp4, mov, m4v; any letter case). Returns job ids.
     importUgc: (filePaths: string[]) => Promise<string[]>;
+  };
+  broll: {
+    // The product's b-roll, newest first.
+    list: (productId: string) => Promise<Media[]>;
+    // Queues one import job per file into this product's library. Returns the job ids.
+    // { ok: false } = the product is gone or archived. Progress comes on jobs.onEvent
+    // (each job carries the productId).
+    import: (
+      productId: string,
+      filePaths: string[],
+    ) => Promise<BrollResult<string[]>>;
+    // Deletes the row and its files (video, thumbnail, filmstrip).
+    remove: (id: string) => Promise<BrollResult<true>>;
   };
   products: {
     // Every product, archived ones included (their slugs still count), with the counts the

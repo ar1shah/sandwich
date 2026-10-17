@@ -1,6 +1,6 @@
 import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
-import { jobTmpDir, ugcClipPaths } from "../../shared/importPaths";
+import { brollPaths, jobTmpDir, ugcClipPaths } from "../../shared/importPaths";
 import { fileBaseName, type JobResult } from "../../shared/jobs";
 import type { JobRunContext } from "../../shared/jobScheduler";
 import type { ProbeResult } from "../../shared/probeParse";
@@ -54,7 +54,14 @@ export function createFfmpegSteps(ffPaths?: FfPaths): ImportSteps {
   };
 }
 
+// Where an imported clip goes: the shared clips/ folder (UGC) or one product's b-roll folder.
+export type ImportTarget =
+  | { kind: "ugc" }
+  | { kind: "broll"; productId: string };
+
 export type ImportClipDeps = {
+  // Defaults to UGC.
+  target?: ImportTarget;
   root: string;
   repos: Pick<Repos, "media">;
   steps: ImportSteps;
@@ -73,7 +80,7 @@ function throwIfAborted(signal: AbortSignal): void {
   }
 }
 
-// Import one UGC clip: normalize -> thumbnail -> filmstrip -> media row.
+// Import one clip (UGC or product b-roll): normalize -> thumbnail -> filmstrip -> media row.
 //
 // The original is only ever read (golden rule 6): ffmpeg opens it read-only and nothing is
 // copied first. Every output is built inside cache/tmp/<jobId>/ and renamed into its final
@@ -88,8 +95,12 @@ export async function importClip(
 ): Promise<JobResult> {
   const { jobId, signal, setProgress } = context;
   const { root, repos, steps } = deps;
+  const importTarget: ImportTarget = deps.target ?? { kind: "ugc" };
   const clipId = deps.newId();
-  const final = ugcClipPaths(clipId, deps.now());
+  const final =
+    importTarget.kind === "broll"
+      ? brollPaths(importTarget.productId, clipId)
+      : ugcClipPaths(clipId, deps.now());
 
   const tmpDir = toAbsolute(root, jobTmpDir(jobId));
   const tmp = {
@@ -143,7 +154,10 @@ export async function importClip(
 
     const media = repos.media.create({
       id: clipId,
-      kind: "ugc",
+      kind: importTarget.kind,
+      ...(importTarget.kind === "broll"
+        ? { productId: importTarget.productId }
+        : {}),
       path: final.video,
       thumbPath: final.thumb,
       filmstripPath: final.filmstrip,

@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Modal } from "../../components/Modal";
-import type { ProductSummary } from "../../../shared/products";
+import {
+  PRODUCT_BUSY_MESSAGE,
+  type ProductSummary,
+} from "../../../shared/products";
 import { useProductsStore } from "./productsStore";
 
 const SECONDARY =
@@ -37,6 +40,9 @@ export const DeleteProductDialog: React.FC<{
         // Videos appeared since the list loaded.
         setVideoCount(result.videoCount ?? 1);
         setArchiveInstead(true);
+      } else if (result.code === "busy") {
+        // An import for this product is still queued or running.
+        setError(PRODUCT_BUSY_MESSAGE);
       } else {
         setError(result.message);
       }

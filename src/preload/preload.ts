@@ -1,9 +1,18 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import {
+  contextBridge,
+  ipcRenderer,
+  webUtils,
+  type IpcRendererEvent,
+} from "electron";
+import type { BrollResult } from "../shared/broll";
 import type { JobEvent, JobInfo } from "../shared/jobs";
-import type { LibraryCandidate, LibraryState } from "../shared/library";
+import type { LibraryCandidate, LibraryState, Media } from "../shared/library";
 import type { ProductResult, ProductSummary } from "../shared/products";
 import {
   APP_VERSION_CHANNEL,
+  BROLL_IMPORT_CHANNEL,
+  BROLL_LIST_CHANNEL,
+  BROLL_REMOVE_CHANNEL,
   DEV_IMPORT_FIXTURES_CHANNEL,
   JOB_EVENT_CHANNEL,
   JOBS_CANCEL_CHANNEL,
@@ -41,6 +50,9 @@ const api: SandwichApi = {
     mediaBaseUrl: () =>
       ipcRenderer.invoke(LIBRARY_MEDIA_BASE_URL_CHANNEL) as Promise<string>,
   },
+  files: {
+    pathsFor: (files) => files.map((file) => webUtils.getPathForFile(file)),
+  },
   jobs: {
     list: () => ipcRenderer.invoke(JOBS_LIST_CHANNEL) as Promise<JobInfo[]>,
     cancel: (jobId) =>
@@ -59,6 +71,19 @@ const api: SandwichApi = {
     importUgc: (filePaths) =>
       ipcRenderer.invoke(MEDIA_IMPORT_UGC_CHANNEL, filePaths) as Promise<
         string[]
+      >,
+  },
+  broll: {
+    list: (productId) =>
+      ipcRenderer.invoke(BROLL_LIST_CHANNEL, productId) as Promise<Media[]>,
+    import: (productId, filePaths) =>
+      ipcRenderer.invoke(BROLL_IMPORT_CHANNEL, {
+        productId,
+        filePaths,
+      }) as Promise<BrollResult<string[]>>,
+    remove: (id) =>
+      ipcRenderer.invoke(BROLL_REMOVE_CHANNEL, id) as Promise<
+        BrollResult<true>
       >,
   },
   products: {

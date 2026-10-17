@@ -6,6 +6,7 @@ import { PRODUCT_GRID_CLASS, ProductCard } from "./ProductCard";
 import { ProductFormModal, type ProductFormMode } from "./ProductFormModal";
 import { ProductPicker } from "./ProductPicker";
 import { productImageUrl } from "./productImageUrl";
+import { useNavStore } from "../shell/navStore";
 import { selectActive, useProductsStore } from "./productsStore";
 
 const PRIMARY =
@@ -18,6 +19,7 @@ export const ProductsPage: React.FC = () => {
   const mediaBase = useProductsStore((s) => s.mediaBase);
   const load = useProductsStore((s) => s.load);
   const touchLastUsed = useProductsStore((s) => s.touchLastUsed);
+  const openProduct = useNavStore((s) => s.openProduct);
 
   const [query, setQuery] = useState("");
   const [form, setForm] = useState<ProductFormMode | null>(null);
@@ -47,8 +49,7 @@ export const ProductsPage: React.FC = () => {
           key={product.id}
           product={product}
           imageUrl={productImageUrl(mediaBase, product)}
-          // Step 2.4 turns this into the product detail page.
-          onSelect={() => setForm({ kind: "edit", product })}
+          onSelect={() => openProduct(product.id)}
           onEdit={() => setForm({ kind: "edit", product })}
           onDelete={() => setDeleting(product)}
         />
