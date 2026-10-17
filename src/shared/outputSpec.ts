@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 // Checks an ffprobe JSON result against the output spec in CLAUDE.md ("Video output spec").
-// Pure: no fs or process. Step 1.5's verify:render builds on this; step 0.4 uses it for
-// the spike renders.
+// Pure: no fs or process. scripts/verify-render.ts (npm run verify:render) builds on this.
 
 const streamSchema = z.looseObject({
   codec_type: z.string().optional(),
@@ -11,6 +10,10 @@ const streamSchema = z.looseObject({
   width: z.number().optional(),
   height: z.number().optional(),
   pix_fmt: z.string().optional(),
+  color_space: z.string().optional(),
+  color_transfer: z.string().optional(),
+  color_primaries: z.string().optional(),
+  color_range: z.string().optional(),
   r_frame_rate: z.string().optional(),
   avg_frame_rate: z.string().optional(),
   duration: z.string().optional(),
@@ -30,6 +33,8 @@ export type OutputSpecExpectations = {
   width: number; // 1080
   height: number; // 1920
   hasAudio: boolean;
+  // Allowed |video duration - durationSeconds|. The audio-vs-video check stays at one frame.
+  durationToleranceSeconds: number;
 };
 
 export const DEFAULT_OUTPUT_SPEC: OutputSpecExpectations = {
@@ -38,6 +43,7 @@ export const DEFAULT_OUTPUT_SPEC: OutputSpecExpectations = {
   width: 1080,
   height: 1920,
   hasAudio: true,
+  durationToleranceSeconds: 0.1,
 };
 
 export function checkOutputSpec(
@@ -81,9 +87,25 @@ export function checkOutputSpec(
   add(
     "video duration",
     Number.isFinite(videoDuration) &&
-      Math.abs(videoDuration - expected.durationSeconds) <= oneFrame + 1e-6,
-    `${video.duration} s (expected ${expected.durationSeconds} +/- ${oneFrame.toFixed(3)})`,
+      Math.abs(videoDuration - expected.durationSeconds) <=
+        expected.durationToleranceSeconds + 1e-6,
+    `${video.duration} s (expected ${expected.durationSeconds} +/- ${expected.durationToleranceSeconds})`,
   );
+
+  // SDR Rec.709, limited range. The matrix tag only means something if the pixels were
+  // converted with the same matrix, so verify:render also compares real frames.
+  add("color_space", video.color_space === "bt709", String(video.color_space));
+  add(
+    "color_transfer",
+    video.color_transfer === "bt709",
+    String(video.color_transfer),
+  );
+  add(
+    "color_primaries",
+    video.color_primaries === "bt709",
+    String(video.color_primaries),
+  );
+  add("color_range", video.color_range === "tv", String(video.color_range));
 
   if (!expected.hasAudio) {
     add("audio", audio === undefined, audio ? "has audio" : "none");
