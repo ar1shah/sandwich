@@ -29,6 +29,7 @@ Think of the app as a restaurant:
 
 ### Main (`src/main/`)
 - `ipc/` : one file per domain (`products.ts`, `broll.ts`, `captions.ts`, `videos.ts`, `jobs.ts`, `library.ts`). Each handler validates input with zod, calls a service, returns plain JSON.
+- `library/` : settings.json in `userData`, folder inspection (sync-folder warning, existing library, schema too new), the library manager (two-phase choose/activate), headless `--db-check`.
 - `db/` : connection, migrations runner, repositories. Migrations are `db/migrations/NNN_name.sql`, applied in order inside a transaction, tracked in a `schema_migrations` table.
 - `jobs/` : in-process queue. Job types: `normalize`, `thumbnail`, `filmstrip`, `render`. Concurrency: 2 for normalize/thumbnail, 1 for render. Emits `job:progress`, `job:done`, `job:failed` to the renderer. Jobs are cancelable.
 - `media/` : `probe.ts`, `normalize.ts`, `thumbs.ts`, `filmstrip.ts`, `binaries.ts` (resolves ffmpeg/ffprobe paths for dev vs packaged, mac vs win).
@@ -85,6 +86,7 @@ CREATE TABLE products (
   slug TEXT NOT NULL UNIQUE,
   image_path TEXT,
   last_used_at TEXT,
+  archived_at TEXT,                -- set = hidden from pickers; videos and history are kept
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -126,6 +128,8 @@ CREATE TABLE videos (
   updated_at TEXT NOT NULL
 );
 ```
+
+Deleting a product: a product with videos is **archived** (`archived_at`), never hard deleted (`videos.product_id` has no cascade on purpose). Hard delete is only for a product with zero videos and cascades to its media and captions. Opening a library runs pending migrations after writing `library.db.bak-v<oldVersion>` (newest 3 kept) and checks `PRAGMA foreign_key_check` afterwards (DECISIONS #28).
 
 Later migrations add `creators`, `clip_rights`, `video_stats`, and an `ai_generated` flag on `media`.
 
@@ -184,7 +188,10 @@ Progress: parse ffmpeg `-progress pipe:1` output for `out_time_ms` and report pe
 ## 8. IPC surface (initial)
 
 ```ts
-library.get() / library.choose() / library.mediaBaseUrl()
+library.get() -> LibraryState (unconfigured | ready | error)
+library.choose("dialog" | "default") -> LibraryCandidate | null   // inspects a folder, no side effects
+library.activate({ useChosenFolder? }) -> LibraryState            // opens the folder main is holding
+library.mediaBaseUrl()
 products.list({ search? }) / products.create(input) / products.update(id, patch) / products.remove(id) / products.setImage(id, filePath)
 broll.list(productId) / broll.import(productId, filePaths[]) / broll.remove(id)
 media.importUgc(filePaths[]) -> jobIds

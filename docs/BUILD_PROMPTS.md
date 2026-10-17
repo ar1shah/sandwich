@@ -246,7 +246,7 @@ Step 2.1: library folder and SQLite. See docs/reference/ARCHITECTURE.md sections
 
 1. First-launch flow: if no library is configured, show a welcome screen to choose or create a library folder (default ~/Movies/SandwichLibrary). Store the chosen path in app settings (userData). Settings page shows the path and lets you switch libraries.
 2. Warn (do not block) if the chosen path is inside Dropbox, Google Drive, OneDrive, or iCloud Drive, explaining that the database can corrupt in synced folders.
-3. better-sqlite3 in main, WAL mode, foreign keys on. Make sure the native module is rebuilt for Electron and unpacked in packaged builds.
+3. better-sqlite3 in main, WAL mode, foreign keys on. Make sure the native module is unpacked in packaged builds. (better-sqlite3 13 ships N-API prebuilds, so no rebuild for Electron is needed; see DECISIONS #28.)
 4. Migrations runner: db/migrations/NNN_name.sql, transactional, tracked in schema_migrations. 001_init.sql with the schema from ARCHITECTURE.md section 4.
 5. Repositories for products, media, captions, videos with typed inputs/outputs. Paths stored relative to the library root with forward slashes; a helper converts to absolute with path.join.
 6. Point the media server root at the library folder.
