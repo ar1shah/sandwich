@@ -9,12 +9,19 @@ import type { Repos } from "../db/repos";
 import { inspectFolder, syncProviderOf } from "./inspectFolder";
 import { openLibrary, type OpenLibrary } from "./openLibrary";
 import type { SettingsStore } from "./settings";
+import { sweepLibrary } from "./sweepLibrary";
 
 export type LibraryManagerDeps = {
   settings: SettingsStore;
   defaultPath: string;
   // Native folder dialog; null = cancelled.
   pickFolder: () => Promise<string | null>;
+  // Runs after the new library opened and was saved, right before the old one is closed.
+  // Main passes the job queue's cancelAll here, so no job is writing to a database that is
+  // about to close. A failed switch never gets this far, so it cancels nothing.
+  beforeClosePrevious?: () => Promise<void>;
+  // Crash recovery for a library no job is using. Defaults to sweepLibrary.
+  sweep?: (root: string) => Promise<void>;
 };
 
 // Owns the active library (folder + open database) and the two-phase switch:
@@ -24,6 +31,8 @@ export function createLibraryManager({
   settings,
   defaultPath,
   pickFolder,
+  beforeClosePrevious,
+  sweep = sweepLibrary,
 }: LibraryManagerDeps) {
   let active: OpenLibrary | null = null;
   let state: LibraryState = { status: "unconfigured", defaultPath };
@@ -38,6 +47,17 @@ export function createLibraryManager({
     };
   }
 
+  // Best effort: a sweep problem must never stop a library from opening.
+  async function trySweep(root: string): Promise<void> {
+    try {
+      await sweep(root);
+    } catch (error) {
+      console.error(
+        `[library] sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   async function init(): Promise<void> {
     const { libraryPath } = await settings.read();
     if (!libraryPath) {
@@ -45,6 +65,7 @@ export function createLibraryManager({
     }
     try {
       active = await openLibrary(libraryPath, { mustExist: true });
+      await trySweep(libraryPath);
       state = await readyState(libraryPath);
     } catch (error) {
       // Keep the saved path: the drive may just be disconnected.
@@ -113,6 +134,16 @@ export function createLibraryManager({
         throw error;
       }
       const previous = active;
+      if (previous) {
+        try {
+          await beforeClosePrevious?.();
+        } catch (error) {
+          closeDatabase(next.db);
+          throw error;
+        }
+      }
+      // Jobs of the old library are gone now, so nothing can be using this root's staging.
+      await trySweep(candidate.path);
       active = next;
       state = await readyState(candidate.path);
       pending = null;

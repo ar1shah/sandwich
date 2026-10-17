@@ -39,7 +39,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 2.1 Library folder + SQLite + migrations (works in packaged app)
   - [x] You: fresh launch shows the welcome screen; second launch goes straight in
   - [ ] You: packaged app opens the DB with no native module error
-- [ ] 2.2 Job queue + jobs tray
+- [x] 2.2 Job queue + jobs tray
+  - [x] You: importing 6 clips at once runs 2 at a time and the UI never freezes
+  - [x] You: cancel leaves no partial files in the library folder
 - [ ] 2.3 Products (cards, search, recents, ProductPicker)
 - [ ] 2.4 B-roll library (import, hover preview, BrollPicker)
 - [ ] 2.5 Caption bank (CRUD, tokens preview, bulk paste, CaptionPicker)

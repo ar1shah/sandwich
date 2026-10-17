@@ -7,16 +7,21 @@ import {
 } from "electron";
 import path from "node:path";
 import { formatCapabilityReport } from "../shared/capabilitiesParse";
-import { APP_VERSION_CHANNEL } from "../shared/ipc";
+import { APP_VERSION_CHANNEL, JOB_EVENT_CHANNEL } from "../shared/ipc";
+import { createJobEventThrottle } from "../shared/jobEventThrottle";
 import { DEFAULT_LIBRARY_FOLDER_NAME } from "../shared/library";
+import { registerJobsIpc } from "./ipc/jobs";
 import { registerLibraryIpc } from "./ipc/library";
+import { registerMediaIpc } from "./ipc/media";
+import { createJobService } from "./jobs";
+import { createFfmpegSteps } from "./jobs/importClip";
 import {
   getDbCheckTestArgs,
   runDbCheckTest,
 } from "./library/db-check-test-mode";
 import { createLibraryManager } from "./library/libraryManager";
 import { createSettingsStore } from "./library/settings";
-import { resolveFfPaths } from "./media/binaries";
+import { resolveFfPaths, type FfPaths } from "./media/binaries";
 import { getFfCapabilities } from "./media/capabilities";
 import { startMediaServer, type MediaServer } from "./media/mediaServer";
 import {
@@ -82,15 +87,19 @@ function createWindow(): void {
   }
 }
 
+function getAppFfPaths(): FfPaths {
+  return resolveFfPaths({
+    isPackaged: app.isPackaged,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+    platform: process.platform,
+    arch: process.arch,
+  });
+}
+
 async function logFfCapabilities(): Promise<void> {
   try {
-    const { ffmpeg } = resolveFfPaths({
-      isPackaged: app.isPackaged,
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
-      platform: process.platform,
-      arch: process.arch,
-    });
+    const { ffmpeg } = getAppFfPaths();
     const report = await getFfCapabilities(ffmpeg);
     const log = report.ok ? console.log : console.error;
     log(`[ffmpeg] ${formatCapabilityReport(report)}`);
@@ -124,6 +133,35 @@ const libraryManager = createLibraryManager({
       : await dialog.showOpenDialog(options);
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
+  // A library switch ends the old library's jobs before its database closes.
+  beforeClosePrevious: () => jobService.cancelAll(),
+});
+
+// Job events go to the window if there is one. On macOS the window can close while jobs
+// keep running; the next window loads a fresh snapshot. Progress ticks are throttled,
+// state changes always go out.
+const jobEventThrottle = createJobEventThrottle({
+  send: (event) => {
+    const contents = mainWindow?.webContents;
+    if (
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      contents &&
+      !contents.isDestroyed()
+    ) {
+      contents.send(JOB_EVENT_CHANNEL, event);
+    }
+  },
+});
+
+const jobService = createJobService({
+  getLibrary: () => {
+    const root = libraryManager.getRoot();
+    const repos = libraryManager.getRepos();
+    return root && repos ? { root, repos } : null;
+  },
+  onEvent: (event) => jobEventThrottle.push(event),
+  steps: createFfmpegSteps(getAppFfPaths()),
 });
 
 // App-wide media server. Serves the active library; with no library yet requests get 503.
@@ -153,7 +191,32 @@ registerLibraryIpc({
   assertTrustedSender,
 });
 
+registerJobsIpc({ jobs: jobService, assertTrustedSender });
+registerMediaIpc({
+  jobs: jobService,
+  assertTrustedSender,
+  // Dev builds only: app.getAppPath() is the project root there.
+  devFixturesDir: app.isPackaged
+    ? null
+    : path.join(app.getAppPath(), "fixtures"),
+});
+
+// will-quit is synchronous, so running jobs must be stopped here first: cancelAll resolves
+// only after every ffmpeg child has closed, and only then may the database close. Runs once.
+let quitGuardDone = false;
+app.on("before-quit", (event) => {
+  if (quitGuardDone || !jobService.hasActive()) {
+    return;
+  }
+  quitGuardDone = true;
+  event.preventDefault();
+  void jobService.cancelAll().finally(() => {
+    app.quit();
+  });
+});
+
 app.on("will-quit", () => {
+  jobEventThrottle.dispose();
   void mediaServer?.close();
   libraryManager.close();
 });

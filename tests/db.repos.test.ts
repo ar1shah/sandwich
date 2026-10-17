@@ -193,6 +193,23 @@ describe("media", () => {
     );
   });
 
+  it("uses a caller-supplied id, and rejects a duplicate one", async () => {
+    const { repos } = await makeTempLibraryDb();
+    const saved = repos.media.create({
+      ...media(null, "clips/2026-10/mine.mp4"),
+      id: "mine",
+    });
+    expect(saved.id).toBe("mine");
+    expect(repos.media.get("mine")?.path).toBe("clips/2026-10/mine.mp4");
+    expect(() =>
+      repos.media.create({ ...media(null, "clips/2026-10/b.mp4"), id: "mine" }),
+    ).toThrow(/UNIQUE|PRIMARY/);
+    // Without an id the repo still generates one.
+    expect(repos.media.create(media(null, "clips/2026-10/c.mp4")).id).toMatch(
+      /^id-/,
+    );
+  });
+
   it("rejects absolute, traversing and backslash paths", async () => {
     const { repos } = await makeTempLibraryDb();
     for (const bad of ["/abs/x.mp4", "../x.mp4", "a\\b.mp4", "C:/x.mp4"]) {

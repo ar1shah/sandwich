@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { JobsTray } from "../jobs/JobsTray";
 import { useNavStore } from "./navStore";
 import { PAGES } from "./pages";
 
@@ -45,6 +46,7 @@ export const Sidebar: React.FC = () => {
           );
         })}
       </nav>
+      <JobsTray />
       <div className="border-t border-edge px-5 py-3 text-xs text-app-dim">
         {version ? `v${version}` : "..."}
       </div>

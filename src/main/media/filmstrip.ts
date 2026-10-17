@@ -15,7 +15,13 @@ export type FilmstripResult = FilmstripLayout & { path: string };
 export async function makeFilmstrip(
   videoPath: string,
   jpgPath: string,
-  clip: { duration: number; width: number; height: number; ffPaths?: FfPaths },
+  clip: {
+    duration: number;
+    width: number;
+    height: number;
+    ffPaths?: FfPaths;
+    signal?: AbortSignal;
+  },
 ): Promise<FilmstripResult> {
   const ff = clip.ffPaths ?? resolveDevFfPaths();
   const layout = filmstripLayout(clip.duration, clip.width, clip.height);
@@ -40,7 +46,7 @@ export async function makeFilmstrip(
       "1",
       jpgPath,
     ],
-    { timeoutMs: 120_000 },
+    { timeoutMs: 120_000, signal: clip.signal },
   );
   return { path: jpgPath, ...layout };
 }

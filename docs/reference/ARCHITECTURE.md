@@ -31,7 +31,7 @@ Think of the app as a restaurant:
 - `ipc/` : one file per domain (`products.ts`, `broll.ts`, `captions.ts`, `videos.ts`, `jobs.ts`, `library.ts`). Each handler validates input with zod, calls a service, returns plain JSON.
 - `library/` : settings.json in `userData`, folder inspection (sync-folder warning, existing library, schema too new), the library manager (two-phase choose/activate), headless `--db-check`.
 - `db/` : connection, migrations runner, repositories. Migrations are `db/migrations/NNN_name.sql`, applied in order inside a transaction, tracked in a `schema_migrations` table.
-- `jobs/` : in-process queue. Job types: `normalize`, `thumbnail`, `filmstrip`, `render`. Concurrency: 2 for normalize/thumbnail, 1 for render. Emits `job:progress`, `job:done`, `job:failed` to the renderer. Jobs are cancelable.
+- `jobs/` : in-process queue. The scheduler is pure (`src/shared/jobScheduler.ts`, unit tested with fake runners); `src/main/jobs/` holds the runners. Job types: `importClip` (probe, normalize, thumbnail, filmstrip, media row; concurrency 2) and `render` (concurrency 1; typed now, runner added in 3.5). A job in `cancelling` keeps its pool slot until its runner settles. Every state change and progress tick goes to the renderer on one channel, `job:event` (`{ type: 'queued' | 'started' | 'progress' | 'done' | 'failed' | 'cancelled', job: JobInfo }`); `JobInfo.seq` only grows, so a stale `jobs.list()` snapshot never overwrites a newer event. Progress is throttled, state changes never are. `importClip` builds every output in `cache/tmp/<jobId>/`, renames them into place, and inserts the row last; `sweepLibrary(root)` empties `cache/tmp` and stray `.partial` files when a library is opened by the app (never inside `openLibrary()`). See DECISIONS #29.
 - `media/` : `probe.ts`, `normalize.ts`, `thumbs.ts`, `filmstrip.ts`, `binaries.ts` (resolves ffmpeg/ffprobe paths for dev vs packaged, mac vs win).
 - `render/` : wraps `selectComposition` + `renderMedia`. Dev uses a dev bundle; packaged uses the prebuilt bundle directory shipped with the app. Passes `binariesDirectory` and `browserExecutable` explicitly in packaged builds.
 - `mediaServer.ts` : see section 5.
@@ -194,11 +194,11 @@ library.activate({ useChosenFolder? }) -> LibraryState            // opens the f
 library.mediaBaseUrl()
 products.list({ search? }) / products.create(input) / products.update(id, patch) / products.remove(id) / products.setImage(id, filePath)
 broll.list(productId) / broll.import(productId, filePaths[]) / broll.remove(id)
-media.importUgc(filePaths[]) -> jobIds
+media.importUgc(filePaths[]) -> jobIds     // mp4/mov/m4v, any letter case
 captions.list({ productId?, slot? }) / captions.create / captions.update / captions.remove / captions.bulkAdd(text, productId?)
 videos.saveDraft(recipe) / videos.list({ productId? }) / videos.get(id) / videos.export(recipe) -> jobId / videos.reveal(id)
-jobs.cancel(id)
-events: job:progress, job:done, job:failed
+jobs.list() -> JobInfo[] / jobs.cancel(id) -> boolean
+events (main -> renderer, one channel): job:event { type: queued | started | progress | done | failed | cancelled, job: JobInfo }
 ```
 
 ## 9. Security
