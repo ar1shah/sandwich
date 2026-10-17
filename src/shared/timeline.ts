@@ -18,6 +18,14 @@ export type Timeline = {
   totalFrames: number; // always the sum of the clips' durationInFrames
 };
 
+// First frame of a slot's clip, for "click a slot, seek the preview there".
+export function slotStartFrame(
+  timeline: Pick<Timeline, "clips">,
+  slot: Slot,
+): number {
+  return timeline.clips.find((clip) => clip.slot === slot)?.from ?? 0;
+}
+
 // Clip boundaries are round(cumulative seconds * fps) and clip lengths are the
 // differences, so rounding error never accumulates: the total equals
 // round(totalDuration * fps) unless a clip is pushed up to the 1 frame floor (a clip

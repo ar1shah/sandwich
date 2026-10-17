@@ -44,20 +44,20 @@ Exposes `window.api` with typed functions only. No generic `invoke(channel, ...)
 ### Renderer (`src/renderer/`)
 - `features/products`, `features/broll`, `features/captions`, `features/editor`, `features/batch`, `features/history`, `features/settings`
 - `store/` : Zustand stores. The editor store holds the current Recipe draft.
-- Uses `@remotion/player` with the same `<SandwichVideo>` component from `remotion/`.
+- Uses `@remotion/player` with the same `<SandwichVideo>` component from `remotion/`. `features/preview/`: `PreviewPanel` (Player, safe-zone toggle, memoized inputProps), `PlayerControls` (play/pause, scrubber, loop; listens to the Player's events), `LengthIndicator`, `previewStore` (seek requests by slot or frame).
 
 ### Shared (`src/shared/`)
 Pure TypeScript only. No `fs`, no `window`. Everything here is unit tested.
-- `recipe.ts` (zod schema + types), `tokens.ts`, `naming.ts`, `slug.ts`, `pairing.ts`, `shuffleBag.ts`, `rng.ts`, `safeZone.ts`, `captionFilter.ts`, `bulkPaste.ts`, `api.ts`
+- `recipe.ts` (zod schema + types), `tokens.ts`, `naming.ts`, `slug.ts`, `pairing.ts`, `shuffleBag.ts`, `rng.ts`, `safeZone.ts`, `captionFilter.ts`, `bulkPaste.ts`, `api.ts`, `lengthStatus.ts` (frame-based total and target range), `previewRecipe.ts` (placeholders and missing-clip blanking for the preview)
 
 ### Remotion (`remotion/`)
 - `index.ts` registers the root
 - `Root.tsx` defines `<Composition id="Sandwich" ...>` with `calculateMetadata`, which validates the recipe with zod, returns the parsed recipe in `props`, and derives `durationInFrames` from `buildTimeline` (`src/shared/timeline.ts`). `defaultProps` is an empty recipe with a fixed id and date (deterministic bundle)
 - `SandwichVideo.tsx` : three `<Sequence>`s, each a `<ClipLayer>`, plus the debug overlay
-- `ClipLayer.tsx` : cover-fit `<OffthreadVideo>` (falls back to an HTML5 video in the Player, so one component tree serves preview and render; DECISIONS #26), trim via `trimBefore`, zoom via `zoomScale` (`src/shared/zoom.ts`) on `transform: scale()` with `transformOrigin` from `focus`, mute; the caption sits outside the zoom wrapper
+- `ClipLayer.tsx` : (editor preview only: draws a placeholder label in a slot without media) cover-fit `<OffthreadVideo>` (falls back to an HTML5 video in the Player, so one component tree serves preview and render; DECISIONS #26), trim via `trimBefore`, zoom via `zoomScale` (`src/shared/zoom.ts`) on `transform: scale()` with `transformOrigin` from `focus`, mute; the caption sits outside the zoom wrapper
 - `Caption.tsx` : outline and per-line box styles inside the safe zone; layout from `computeCaptionLayout` (`src/shared/captionLayout.ts`), computed only once the font is ready
 - `DebugOverlay.tsx` : `showSafeZone` rectangle and `showTimecode` label (off by default)
-- `fonts.ts` : one module-level `loadFont` promise for the bundled font (no duplicate FontFaces on Player remounts) and `useFontReady()`, which holds a `delayRender` handle and returns whether the font is loaded
+- `fonts.ts` : the font is imported as a module (`../assets/fonts/TikTokSans36pt-Bold.ttf`, DECISIONS #34); one module-level `loadFont` promise for the bundled font (no duplicate FontFaces on Player remounts) and `useFontReady()`, which holds a `delayRender` handle and returns whether the font is loaded
 - `measureText.ts` : canvas text measurement using exactly the same font shorthand as the drawn text, cached per `(text, size)`
 
 ## 3. Library folder layout

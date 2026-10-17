@@ -5,6 +5,7 @@ import { IMPORT_EXTENSIONS } from "../../../shared/jobs";
 import type { Slot } from "../../../shared/recipe";
 import { useJobsStore } from "../jobs/jobsStore";
 import { mediaThumbUrl } from "../media/mediaUrls";
+import { usePreviewStore } from "../preview/previewStore";
 import { useEditorStore } from "./editorStore";
 
 export const SLOT_LABELS: Record<Slot, string> = {
@@ -41,6 +42,7 @@ export const SlotCard: React.FC<{
   const selectSlot = useEditorStore((s) => s.selectSlot);
   const importToSlot = useEditorStore((s) => s.importToSlot);
   const clearSlot = useEditorStore((s) => s.clearSlot);
+  const requestSeek = usePreviewStore((s) => s.requestSeek);
   const job = useJobsStore((s) =>
     pending ? s.jobs[pending.jobId] : undefined,
   );
@@ -67,7 +69,11 @@ export const SlotCard: React.FC<{
       aria-current={selected ? "true" : undefined}
       data-testid={`slot-${slot}`}
       data-status={status}
-      onClick={() => selectSlot(slot)}
+      onClick={() => {
+        selectSlot(slot);
+        // Only a click on the card itself seeks; the buttons and the drop stop short of it.
+        requestSeek({ slot });
+      }}
       onDragOver={(event) => {
         if (isUgc && hasFiles(event)) {
           event.preventDefault();

@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { formatDuration } from "../../../shared/formatDuration";
-import { SLOTS, totalDuration } from "../../../shared/recipe";
+import { SLOTS } from "../../../shared/recipe";
 import { BrollPicker } from "../broll/BrollPicker";
 import { productImageUrl } from "../products/productImageUrl";
 import { useProductsStore } from "../products/productsStore";
-import { useSettingsStore } from "../settings/settingsStore";
+import { PreviewPanel } from "../preview/PreviewPanel";
 import { useEditorStore } from "./editorStore";
 import { SLOT_LABELS, SlotCard } from "./SlotCard";
 
-// Three columns: slots (left), preview (center, step 3.2), clip panel (right, steps
-// 3.3 and 3.4).
+// Three columns: slots (left), preview (center), clip panel (right, steps 3.3 and 3.4).
 export const EditorLayout: React.FC = () => {
   const draft = useEditorStore((s) => s.draft);
   const product = useEditorStore((s) => s.product);
@@ -20,13 +18,11 @@ export const EditorLayout: React.FC = () => {
   const setBroll = useEditorStore((s) => s.setBroll);
   const dismissNotice = useEditorStore((s) => s.dismissNotice);
   const mediaBase = useProductsStore((s) => s.mediaBase);
-  const range = useSettingsStore((s) => s.settings.targetRange);
   const [pickingBroll, setPickingBroll] = useState(false);
 
   if (!draft || !product) {
     return null;
   }
-  const total = totalDuration(draft);
   const image = productImageUrl(mediaBase, product);
 
   return (
@@ -79,25 +75,7 @@ export const EditorLayout: React.FC = () => {
           ))}
         </ul>
 
-        <section
-          aria-label="Preview"
-          className="grid place-items-center rounded-xl border border-dashed border-edge p-6 text-center"
-        >
-          <div>
-            <p className="text-sm text-app-muted">
-              The live preview arrives in the next step.
-            </p>
-            <p
-              className="mt-3 text-2xl font-semibold"
-              data-testid="total-length"
-            >
-              {formatDuration(total)}
-            </p>
-            <p className="text-xs text-app-dim">
-              Target {range.min} to {range.max} s
-            </p>
-          </div>
-        </section>
+        <PreviewPanel />
 
         <aside
           aria-label="Clip panel"
