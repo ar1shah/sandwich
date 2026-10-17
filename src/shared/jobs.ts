@@ -43,6 +43,9 @@ export type JobInfo = {
   stage?: string;
   error?: string;
   result?: JobResult;
+  // Set on b-roll imports: the product the clip is being added to. Lets the product page
+  // show placeholder tiles and lets product delete refuse while an import is running.
+  productId?: string;
   // Scheduler-wide counter, bumped on every event. A higher seq for the same id is newer,
   // so a stale snapshot can never overwrite a newer event.
   seq: number;
@@ -93,7 +96,7 @@ function isAbsoluteLike(filePath: string): boolean {
 
 export const MAX_IMPORT_FILES = 200;
 
-export const ImportUgcInputSchema = z
+const ImportPathsSchema = z
   .array(
     z
       .string()
@@ -106,6 +109,14 @@ export const ImportUgcInputSchema = z
   )
   .min(1)
   .max(MAX_IMPORT_FILES);
+
+export const ImportUgcInputSchema = ImportPathsSchema;
+
+export const ImportBrollInputSchema = z.object({
+  productId: z.string().min(1).max(100),
+  filePaths: ImportPathsSchema,
+});
+export type ImportBrollInput = z.infer<typeof ImportBrollInputSchema>;
 
 export const JobIdSchema = z.string().min(1).max(100);
 

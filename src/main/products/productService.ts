@@ -9,6 +9,7 @@ import {
 } from "../../shared/importPaths";
 import {
   BAD_IMAGE_MESSAGE,
+  PRODUCT_BUSY_MESSAGE,
   slugConflictMessage,
   type CreateProductInput,
   type ProductError,
@@ -27,6 +28,9 @@ export type ProductServiceDeps = {
   getLibrary: () => { root: string; repos: Repos } | null;
   // Turns an image file into the product JPEG. Injectable so tests can fake it.
   processImage: (input: string, output: string) => Promise<void>;
+  // True while an import job is queued, running or cancelling for this product. Deleting
+  // then would race the job's file writes (DECISIONS #31).
+  hasActiveJobForProduct: (productId: string) => boolean;
   newId?: () => string;
 };
 
@@ -224,6 +228,14 @@ export function createProductService(deps: ProductServiceDeps) {
     if (!repos.products.get(id)) {
       return fail("not-found", null, "That product no longer exists.");
     }
+    if (deps.hasActiveJobForProduct(id)) {
+      return fail("busy", null, PRODUCT_BUSY_MESSAGE);
+    }
+    // The cascade removes the b-roll rows, so note their filmstrips (which live under
+    // cache/, outside the product folder) first.
+    const filmstrips = repos.media
+      .list({ kind: "broll", productId: id })
+      .map((media) => media.filmstripPath);
     try {
       repos.products.remove(id);
     } catch (error) {
@@ -242,6 +254,15 @@ export function createProductService(deps: ProductServiceDeps) {
       recursive: true,
       force: true,
     }).catch(() => undefined);
+    await Promise.all(
+      filmstrips.map((filmstrip) =>
+        filmstrip
+          ? rm(toAbsolute(root, filmstrip), { force: true }).catch(
+              () => undefined,
+            )
+          : undefined,
+      ),
+    );
     return { ok: true, value: true };
   }
 

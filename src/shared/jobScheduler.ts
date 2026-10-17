@@ -27,6 +27,8 @@ export type JobRunner = (
 export type EnqueueInput = {
   type: JobType;
   label: string;
+  // The product a b-roll import adds to; shown on the job and used by hasActiveForProduct.
+  productId?: string;
   run: JobRunner;
 };
 
@@ -182,6 +184,7 @@ export function createJobScheduler(options: JobSchedulerOptions = {}) {
           id: newId(),
           type: input.type,
           label: input.label,
+          ...(input.productId ? { productId: input.productId } : {}),
           state: "queued",
           percent: 0,
           seq: 0,
@@ -222,6 +225,14 @@ export function createJobScheduler(options: JobSchedulerOptions = {}) {
 
     hasActive(): boolean {
       return live.size > 0;
+    },
+
+    // True while a job for this product is queued, running or cancelling (a cancelling job
+    // can still be writing files).
+    hasActiveForProduct(productId: string): boolean {
+      return [...live.values()].some(
+        (entry) => entry.info.productId === productId,
+      );
     },
 
     // Active jobs in creation order, then the most recent finished ones.

@@ -99,6 +99,7 @@ export type ProductErrorCode =
   | "slug-taken-archived"
   | "bad-image"
   | "has-videos"
+  | "busy"
   | "not-found"
   | "invalid";
 
@@ -112,6 +113,9 @@ export type ProductError = {
   videoCount?: number;
 };
 export type ProductResult<T> = { ok: true; value: T } | ProductError;
+
+export const PRODUCT_BUSY_MESSAGE =
+  "This product is still importing b-roll. Wait for it to finish or cancel it first.";
 
 export const BAD_IMAGE_MESSAGE = "Use a JPG, PNG or WebP image.";
 

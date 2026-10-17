@@ -3,7 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createProductService } from "../src/main/products/productService";
-import { BAD_IMAGE_MESSAGE } from "../src/shared/products";
+import {
+  BAD_IMAGE_MESSAGE,
+  PRODUCT_BUSY_MESSAGE,
+} from "../src/shared/products";
 import { makeTempLibraryDb } from "./helpers/db";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
@@ -18,8 +21,11 @@ async function setup(options: { failImage?: boolean } = {}) {
   let processed = 0;
   let counter = 0;
   const calls: string[] = [];
+  // Products that currently have a queued/running import job.
+  const busyProducts = new Set<string>();
   const service = createProductService({
     getLibrary: () => ({ root: lib.root, repos: lib.repos }),
+    hasActiveJobForProduct: (id) => busyProducts.has(id),
     newId: () => `p${++counter}`,
     // Stands in for ffmpeg: writes a recognisable "processed" file.
     processImage: async (input, output) => {
@@ -43,7 +49,7 @@ async function setup(options: { failImage?: boolean } = {}) {
   });
   const tmpEntries = () =>
     existsSync(abs("cache", "tmp")) ? readdirSync(abs("cache", "tmp")) : [];
-  return { ...lib, service, abs, form, calls, tmpEntries };
+  return { ...lib, service, abs, form, calls, tmpEntries, busyProducts };
 }
 
 async function created(ctx: Awaited<ReturnType<typeof setup>>, image = PNG) {
@@ -329,6 +335,65 @@ describe("remove", () => {
     expect(existsSync(ctx.abs("products", product.id))).toBe(false);
   });
 
+  it("removes the b-roll filmstrips under cache/, which live outside the product folder", async () => {
+    const ctx = await setup();
+    const product = await created(ctx);
+    const other = await ctx.service.create({
+      form: ctx.form("Other", "other"),
+    });
+    if (!other.ok) {
+      throw new Error(other.message);
+    }
+    for (const [owner, id] of [
+      [product.id, "mine"],
+      [other.value.id, "theirs"],
+    ] as const) {
+      ctx.repos.media.create({
+        kind: "broll",
+        productId: owner,
+        path: `products/${owner}/broll/${id}.mp4`,
+        filmstripPath: `cache/filmstrips/${id}.jpg`,
+        duration: 5,
+        width: 1080,
+        height: 1920,
+      });
+      await mkdir(ctx.abs("cache", "filmstrips"), { recursive: true });
+      await writeFile(ctx.abs("cache", "filmstrips", `${id}.jpg`), "x");
+    }
+
+    expect((await ctx.service.remove(product.id)).ok).toBe(true);
+    expect(existsSync(ctx.abs("cache", "filmstrips", "mine.jpg"))).toBe(false);
+    expect(existsSync(ctx.abs("cache", "filmstrips", "theirs.jpg"))).toBe(true);
+  });
+
+  it("refuses while an import job is active for that product, but not for another product's", async () => {
+    const ctx = await setup();
+    const product = await created(ctx);
+    ctx.busyProducts.add("some-other-product");
+    expect((await ctx.service.remove(product.id)).ok).toBe(true);
+
+    const again = await ctx.service.create({
+      form: ctx.form("Again", "again"),
+    });
+    if (!again.ok) {
+      throw new Error(again.message);
+    }
+    ctx.busyProducts.add(again.value.id);
+    const refused = await ctx.service.remove(again.value.id);
+    expect(refused).toMatchObject({
+      ok: false,
+      code: "busy",
+      message: PRODUCT_BUSY_MESSAGE,
+    });
+    // Nothing was touched.
+    expect(ctx.service.list()).toHaveLength(1);
+
+    // The job finished: delete works again.
+    ctx.busyProducts.delete(again.value.id);
+    expect((await ctx.service.remove(again.value.id)).ok).toBe(true);
+    expect(ctx.service.list()).toEqual([]);
+  });
+
   it("refuses a product with videos and keeps its files", async () => {
     const ctx = await setup();
     const product = await created(ctx);
@@ -373,6 +438,7 @@ describe("list, archive and touchLastUsed", () => {
   it("throws when no library is open", () => {
     const service = createProductService({
       getLibrary: () => null,
+      hasActiveJobForProduct: () => false,
       processImage: async () => undefined,
     });
     expect(() => service.list()).toThrow(/Open a library/);

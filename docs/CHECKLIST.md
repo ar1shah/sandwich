@@ -45,7 +45,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 2.3 Products (cards, search, recents, ProductPicker)
   - [x] You: add 3 real products with real photos; finding one takes under 2 seconds
   - [x] You: short name preview makes sense; dev product picker works (arrows, Enter) in `npm run dev`
-- [ ] 2.4 B-roll library (import, hover preview, BrollPicker)
+- [x] 2.4 B-roll library (import, hover preview, BrollPicker)
+  - [x] You: import real b-roll for each of your 3 products; hover previews are smooth
+  - [x] You: horizontal or HDR b-roll looks right in thumbnails; dev b-roll picker works (arrows, Enter) in `npm run dev`
 - [ ] 2.5 Caption bank (CRUD, tokens preview, bulk paste, CaptionPicker)
 - [ ] **Phase 2 exit test** (3 products, b-roll, 15 captions survive relaunch)
 

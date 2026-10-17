@@ -194,7 +194,8 @@ library.choose("dialog" | "default") -> LibraryCandidate | null   // inspects a 
 library.activate({ useChosenFolder? }) -> LibraryState            // opens the folder main is holding
 library.mediaBaseUrl()
 products.list({ search? }) / products.create(input) / products.update(id, patch) / products.remove(id) / products.setImage(id, filePath)
-broll.list(productId) / broll.import(productId, filePaths[]) / broll.remove(id)
+broll.list(productId) / broll.import(productId, filePaths[]) -> BrollResult<jobIds> / broll.remove(id) -> BrollResult<true>   // { ok: false } for a missing or archived product
+files.pathsFor(File[]) -> string[]         // preload only (webUtils.getPathForFile), no IPC; "" = no path on disk
 media.importUgc(filePaths[]) -> jobIds     // mp4/mov/m4v, any letter case
 captions.list({ productId?, slot? }) / captions.create / captions.update / captions.remove / captions.bulkAdd(text, productId?)
 videos.saveDraft(recipe) / videos.list({ productId? }) / videos.get(id) / videos.export(recipe) -> jobId / videos.reveal(id)

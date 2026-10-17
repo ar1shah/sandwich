@@ -7,7 +7,7 @@ export function brollLabel(count: number): string {
   return count === 1 ? "1 b-roll clip" : `${count} b-roll clips`;
 }
 
-function initials(name: string): string {
+export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const letters = words
     .slice(0, 2)
@@ -17,7 +17,7 @@ function initials(name: string): string {
 }
 
 // A stable tint per product so placeholders are easy to tell apart.
-function tint(name: string): string {
+export function tint(name: string): string {
   let hash = 0;
   for (const char of name) {
     hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 360;
