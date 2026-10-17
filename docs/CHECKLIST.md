@@ -64,8 +64,8 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
   - [x] You: trimming a long real creator clip to the best 3 seconds takes seconds, and the preview confirms it
   - [x] You: it feels like trimming an Instagram story, not fighting a timeline
 - [x] 3.4 Clip controls (zoom, mute, caption pick/edit/style/save to bank)
-  - [ ] You: caption with `{product}` resolves to the short name
-  - [ ] You: captions look good in both styles on real footage (bright and dark backgrounds)
+  - [x] You: caption with `{product}` resolves to the short name
+  - [x] You: captions look good in both styles on real footage (bright and dark backgrounds)
 - [ ] 3.5 Export (naming, verify, sidecar, Show in Finder)
 - [ ] 3.6 History + hardening + packaged run-through + USER_GUIDE.md
 - [ ] **Phase 3 exit test** (3 real videos posted as TikTok drafts, under 3 min each)
