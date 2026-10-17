@@ -1,6 +1,7 @@
 // Library folder and database types shared by main, preload and renderer (ARCHITECTURE
 // sections 3 and 4). Types, constants and zod schemas only: no Node or DOM imports.
 import { z } from "zod";
+import { ClipDurationsSchema, TargetRangeSchema } from "./settings";
 import type { SyncProvider } from "./syncedFolders";
 
 export const LIBRARY_DB_FILE = "library.db";
@@ -110,7 +111,13 @@ export type LibraryActivateOptions = z.infer<
 >;
 
 // <userData>/settings.json
+// The editor fields are tolerant (.catch): one bad value must never make the whole file
+// read as "no settings", which would drop libraryPath and show the welcome screen.
 export const AppSettingsSchema = z.object({
   libraryPath: z.string().min(1).optional(),
+  clipDurations: ClipDurationsSchema.optional().catch(undefined),
+  targetRange: TargetRangeSchema.optional().catch(undefined),
+  // The draft that was open when the editor last closed, per library root.
+  openDrafts: z.record(z.string(), z.string()).optional().catch(undefined),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;

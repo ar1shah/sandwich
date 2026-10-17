@@ -1,9 +1,9 @@
 import { mediaUrl } from "../../../shared/mediaUrl";
 import type { Media } from "../../../shared/library";
 
-// b-roll file names carry the clip id and are never overwritten, so no cache-busting query
+// Media file names carry the clip id and are never overwritten, so no cache-busting query
 // is needed (unlike the product photo).
-export function brollThumbUrl(
+export function mediaThumbUrl(
   mediaBase: string | null,
   media: Pick<Media, "thumbPath">,
 ): string | null {
@@ -12,7 +12,7 @@ export function brollThumbUrl(
     : null;
 }
 
-export function brollVideoUrl(
+export function mediaVideoUrl(
   mediaBase: string | null,
   media: Pick<Media, "path">,
 ): string | null {

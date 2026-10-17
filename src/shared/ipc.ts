@@ -6,6 +6,8 @@ import type {
   Caption,
   LibraryState,
   Media,
+  Video,
+  VideoStatus,
 } from "./library";
 import type { BrollResult } from "./broll";
 import type {
@@ -15,6 +17,10 @@ import type {
   UpdateCaptionInput,
 } from "./captions";
 import type { JobEvent, JobInfo } from "./jobs";
+import type { MediaPathCheck } from "./mediaLookup";
+import type { EditorSettings, UpdateEditorSettings } from "./settings";
+import type { Recipe } from "./recipe";
+import type { SavedDraft, VideoResult } from "./videos";
 import type {
   CreateProductRequest,
   ProductResult,
@@ -30,6 +36,16 @@ export const LIBRARY_ACTIVATE_CHANNEL = "library:activate";
 export const JOBS_LIST_CHANNEL = "jobs:list";
 export const JOBS_CANCEL_CHANNEL = "jobs:cancel";
 export const MEDIA_IMPORT_UGC_CHANNEL = "media:importUgc";
+export const MEDIA_GET_CHANNEL = "media:get";
+export const MEDIA_BY_PATHS_CHANNEL = "media:byPaths";
+export const SETTINGS_GET_CHANNEL = "settings:get";
+export const SETTINGS_UPDATE_CHANNEL = "settings:update";
+export const SETTINGS_GET_OPEN_DRAFT_CHANNEL = "settings:getOpenDraft";
+export const SETTINGS_SET_OPEN_DRAFT_CHANNEL = "settings:setOpenDraft";
+export const VIDEOS_SAVE_DRAFT_CHANNEL = "videos:saveDraft";
+export const VIDEOS_LIST_CHANNEL = "videos:list";
+export const VIDEOS_GET_CHANNEL = "videos:get";
+export const VIDEOS_REMOVE_CHANNEL = "videos:remove";
 export const BROLL_LIST_CHANNEL = "broll:list";
 export const BROLL_IMPORT_CHANNEL = "broll:import";
 export const BROLL_REMOVE_CHANNEL = "broll:remove";
@@ -80,6 +96,36 @@ export type SandwichApi = {
   media: {
     // Queues one importClip job per file (mp4, mov, m4v; any letter case). Returns job ids.
     importUgc: (filePaths: string[]) => Promise<string[]>;
+    // One media row (null = gone). How a finished import job becomes a clip.
+    get: (id: string) => Promise<Media | null>;
+    // For each library-relative path: its row (if any) and whether the file is on disk.
+    // Same order as the input. Drives the "Clip missing" state of a restored draft.
+    byPaths: (paths: string[]) => Promise<MediaPathCheck[]>;
+  };
+  settings: {
+    // Defaults filled in for anything the user never changed.
+    get: () => Promise<EditorSettings>;
+    // Editor fields only (clip lengths, target range); libraryPath is never accepted.
+    // { ok: false } carries the first validation message.
+    update: (
+      patch: UpdateEditorSettings,
+    ) => Promise<
+      { ok: true; value: EditorSettings } | { ok: false; message: string }
+    >;
+    // The draft the editor has open in the current library (null = none). Main keys it by
+    // the active library root, so the renderer never names a path.
+    getOpenDraft: () => Promise<string | null>;
+    setOpenDraft: (draftId: string | null) => Promise<void>;
+  };
+  videos: {
+    // Insert or update a draft by recipe.id. { ok: false } = invalid recipe, product gone
+    // or archived (new drafts only), or the video is already exported.
+    saveDraft: (recipe: Recipe) => Promise<VideoResult<SavedDraft>>;
+    // Newest-updated first. Rows carry the raw recipe JSON; use summarizeDraft/parseDraftRecipe.
+    list: (options?: { status?: VideoStatus }) => Promise<Video[]>;
+    get: (id: string) => Promise<Video | null>;
+    // Drafts only.
+    remove: (id: string) => Promise<VideoResult<true>>;
   };
   broll: {
     // The product's b-roll, newest first.

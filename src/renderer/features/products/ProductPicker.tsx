@@ -22,14 +22,18 @@ function columnCount(grid: HTMLElement | null): number {
   return Math.max(1, columns);
 }
 
-// The product card grid in a modal, for choosing a product in the editor or batch mode.
+// The product card grid, for choosing a product in the editor or batch mode.
 // Type to filter; arrows move the highlight, Enter picks it (or the first match when
-// nothing is highlighted), Escape closes. Archived products are hidden.
+// nothing is highlighted). Archived products are hidden.
+// layout "modal" (default): in a dialog, Escape closes it.
+// layout "page": the grid fills the page (New Video), Escape clears the search instead.
 export const ProductPicker: React.FC<{
   onSelect: (product: ProductSummary) => void;
-  onClose: () => void;
+  // Needed for the modal layout.
+  onClose?: () => void;
   title?: string;
-}> = ({ onSelect, onClose, title = "Choose a product" }) => {
+  layout?: "modal" | "page";
+}> = ({ onSelect, onClose, title = "Choose a product", layout = "modal" }) => {
   const products = useProductsStore((s) => s.products);
   const mediaBase = useProductsStore((s) => s.mediaBase);
   const load = useProductsStore((s) => s.load);
@@ -77,6 +81,10 @@ export const ProductPicker: React.FC<{
           columnCount(grid.current),
         ),
       );
+    } else if (event.key === "Escape" && layout === "page") {
+      event.preventDefault();
+      setQuery("");
+      setCursor(-1);
     } else if (event.key === "Enter") {
       event.preventDefault();
       const pick = shown[active >= 0 ? active : 0];
@@ -86,8 +94,8 @@ export const ProductPicker: React.FC<{
     }
   }
 
-  return (
-    <Modal title={title} onClose={onClose} widthClass="max-w-4xl">
+  const content = (
+    <>
       <input
         type="search"
         autoFocus
@@ -130,6 +138,18 @@ export const ProductPicker: React.FC<{
           ))}
         </ul>
       )}
+    </>
+  );
+
+  return layout === "page" ? (
+    content
+  ) : (
+    <Modal
+      title={title}
+      onClose={onClose ?? (() => undefined)}
+      widthClass="max-w-4xl"
+    >
+      {content}
     </Modal>
   );
 };

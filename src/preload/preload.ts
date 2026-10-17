@@ -11,9 +11,14 @@ import type {
   LibraryCandidate,
   LibraryState,
   Media,
+  Video,
 } from "../shared/library";
 import type { CaptionResult } from "../shared/captions";
 import type { ProductResult, ProductSummary } from "../shared/products";
+import type { MediaPathCheck } from "../shared/mediaLookup";
+import type { Recipe } from "../shared/recipe";
+import type { EditorSettings } from "../shared/settings";
+import type { SavedDraft, VideoResult } from "../shared/videos";
 import {
   APP_VERSION_CHANNEL,
   BROLL_IMPORT_CHANNEL,
@@ -28,7 +33,17 @@ import {
   JOB_EVENT_CHANNEL,
   JOBS_CANCEL_CHANNEL,
   JOBS_LIST_CHANNEL,
+  MEDIA_BY_PATHS_CHANNEL,
+  MEDIA_GET_CHANNEL,
   MEDIA_IMPORT_UGC_CHANNEL,
+  SETTINGS_GET_CHANNEL,
+  SETTINGS_GET_OPEN_DRAFT_CHANNEL,
+  SETTINGS_SET_OPEN_DRAFT_CHANNEL,
+  SETTINGS_UPDATE_CHANNEL,
+  VIDEOS_GET_CHANNEL,
+  VIDEOS_LIST_CHANNEL,
+  VIDEOS_REMOVE_CHANNEL,
+  VIDEOS_SAVE_DRAFT_CHANNEL,
   PRODUCTS_ARCHIVE_CHANNEL,
   PRODUCTS_CREATE_CHANNEL,
   PRODUCTS_LIST_CHANNEL,
@@ -82,6 +97,43 @@ const api: SandwichApi = {
     importUgc: (filePaths) =>
       ipcRenderer.invoke(MEDIA_IMPORT_UGC_CHANNEL, filePaths) as Promise<
         string[]
+      >,
+    get: (id) =>
+      ipcRenderer.invoke(MEDIA_GET_CHANNEL, id) as Promise<Media | null>,
+    byPaths: (paths) =>
+      ipcRenderer.invoke(MEDIA_BY_PATHS_CHANNEL, paths) as Promise<
+        MediaPathCheck[]
+      >,
+  },
+  settings: {
+    get: () =>
+      ipcRenderer.invoke(SETTINGS_GET_CHANNEL) as Promise<EditorSettings>,
+    update: (patch) =>
+      ipcRenderer.invoke(SETTINGS_UPDATE_CHANNEL, patch) as Promise<
+        { ok: true; value: EditorSettings } | { ok: false; message: string }
+      >,
+    getOpenDraft: () =>
+      ipcRenderer.invoke(SETTINGS_GET_OPEN_DRAFT_CHANNEL) as Promise<
+        string | null
+      >,
+    setOpenDraft: (draftId) =>
+      ipcRenderer.invoke(
+        SETTINGS_SET_OPEN_DRAFT_CHANNEL,
+        draftId,
+      ) as Promise<void>,
+  },
+  videos: {
+    saveDraft: (recipe: Recipe) =>
+      ipcRenderer.invoke(VIDEOS_SAVE_DRAFT_CHANNEL, recipe) as Promise<
+        VideoResult<SavedDraft>
+      >,
+    list: (options) =>
+      ipcRenderer.invoke(VIDEOS_LIST_CHANNEL, options) as Promise<Video[]>,
+    get: (id) =>
+      ipcRenderer.invoke(VIDEOS_GET_CHANNEL, id) as Promise<Video | null>,
+    remove: (id) =>
+      ipcRenderer.invoke(VIDEOS_REMOVE_CHANNEL, id) as Promise<
+        VideoResult<true>
       >,
   },
   broll: {

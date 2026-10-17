@@ -19,6 +19,11 @@ import { createCaptionService } from "./captions/captionService";
 import { registerBrollIpc } from "./ipc/broll";
 import { registerCaptionsIpc } from "./ipc/captions";
 import { registerMediaIpc } from "./ipc/media";
+import { registerSettingsIpc } from "./ipc/settings";
+import { registerVideosIpc } from "./ipc/videos";
+import { createMediaLookup } from "./media/mediaLookup";
+import { createEditorSettingsService } from "./settings/editorSettingsService";
+import { createVideoService } from "./videos/videoService";
 import { registerProductsIpc } from "./ipc/products";
 import { createJobService } from "./jobs";
 import { createFfmpegSteps } from "./jobs/importClip";
@@ -140,10 +145,12 @@ ipcMain.handle(APP_VERSION_CHANNEL, (event: IpcMainInvokeEvent) => {
   return app.getVersion();
 });
 
+const settingsStore = createSettingsStore(
+  path.join(app.getPath("userData"), "settings.json"),
+);
+
 const libraryManager = createLibraryManager({
-  settings: createSettingsStore(
-    path.join(app.getPath("userData"), "settings.json"),
-  ),
+  settings: settingsStore,
   // ~/Movies/SandwichLibrary on macOS, the Videos folder on Windows.
   defaultPath: path.join(app.getPath("videos"), DEFAULT_LIBRARY_FOLDER_NAME),
   pickFolder: async () => {
@@ -251,8 +258,31 @@ registerCaptionsIpc({
   }),
   assertTrustedSender,
 });
+registerVideosIpc({
+  videos: createVideoService({
+    getLibrary: () => {
+      const repos = libraryManager.getRepos();
+      return repos ? { repos } : null;
+    },
+  }),
+  assertTrustedSender,
+});
+registerSettingsIpc({
+  settings: createEditorSettingsService({
+    store: settingsStore,
+    getRoot: () => libraryManager.getRoot(),
+  }),
+  assertTrustedSender,
+});
 registerMediaIpc({
   jobs: jobService,
+  lookup: createMediaLookup({
+    getLibrary: () => {
+      const root = libraryManager.getRoot();
+      const repos = libraryManager.getRepos();
+      return root && repos ? { root, repos } : null;
+    },
+  }),
   assertTrustedSender,
   // Dev builds only: app.getAppPath() is the project root there.
   devFixturesDir: app.isPackaged

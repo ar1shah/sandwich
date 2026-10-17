@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useEditorStore } from "../editor/editorStore";
 import type {
   LibraryCandidate,
   LibraryChooseSource,
@@ -59,14 +60,26 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       return;
     }
     set({ busy: true, error: null });
+    // The open draft's last save must land in the OLD library before it closes, and
+    // nothing may save or import until the switch has settled.
+    const editor = useEditorStore.getState();
+    await editor.beforeLibrarySwitch();
+    let switched = false;
     try {
       const state = await window.api.library.activate(
         useChosenFolder ? { useChosenFolder: true } : undefined,
       );
       set({ state, candidate: null });
+      switched = true;
     } catch (error) {
       set({ error: messageOf(error) });
     } finally {
+      if (switched) {
+        // Reset the editor and look for a draft that was open in the new library.
+        void useEditorStore.getState().afterLibrarySwitch();
+      } else {
+        useEditorStore.getState().abortLibrarySwitch();
+      }
       set({ busy: false });
     }
   },

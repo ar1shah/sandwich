@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { startEditor } from "./features/editor/editorStore";
+import { useNavStore } from "./features/shell/navStore";
 import { useLibraryStore } from "./features/library/libraryStore";
 import { WelcomeScreen } from "./features/library/WelcomeScreen";
 import { PageView } from "./features/shell/PageView";
@@ -11,6 +13,16 @@ export const App: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const ready = state?.status === "ready";
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    // Finished imports land in their slots; the draft that was open comes back, and the
+    // app opens on it.
+    return startEditor(() => useNavStore.getState().setPage("new-video"));
+  }, [ready]);
 
   if (!state) {
     return <div className="h-screen bg-app" />;
