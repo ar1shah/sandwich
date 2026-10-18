@@ -1,3 +1,4 @@
+import { LoadError } from "../../components/LoadError";
 import { useEffect, useId, useRef, useState } from "react";
 import { Modal } from "../../components/Modal";
 import { nextGridIndex, type GridKey } from "../../../shared/gridNav";
@@ -79,7 +80,13 @@ export const BrollPicker: React.FC<{
 
   return (
     <Modal title={title} onClose={onClose} widthClass="max-w-4xl">
-      {!entry.loaded ? (
+      {entry.error ? (
+        <LoadError
+          className="mt-8 text-center"
+          message={`Could not load b-roll: ${entry.error}`}
+          onRetry={() => void load(productId)}
+        />
+      ) : !entry.loaded ? (
         <p className="mt-8 text-center text-sm text-app-muted">Loading...</p>
       ) : items.length === 0 ? (
         <p className="mt-8 text-center text-sm text-app-muted">

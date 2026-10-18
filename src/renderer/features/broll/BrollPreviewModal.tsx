@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Modal } from "../../components/Modal";
 import { formatDuration } from "../../../shared/formatDuration";
 import type { Media } from "../../../shared/library";
@@ -12,14 +13,25 @@ export const BrollPreviewModal: React.FC<{
   onClose: () => void;
 }> = ({ media, mediaBase, onClose }) => {
   const video = mediaVideoUrl(mediaBase, media);
+  const [failed, setFailed] = useState(false);
   return (
     <Modal
       title={brollTileLabel(media)}
       onClose={onClose}
       widthClass="max-w-xl"
     >
-      {video && (
+      {failed && (
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+        >
+          This clip file is missing from the library. Delete it from the product
+          page and import it again.
+        </p>
+      )}
+      {video && !failed && (
         <video
+          onError={() => setFailed(true)}
           src={video}
           controls
           autoPlay

@@ -1,3 +1,4 @@
+import { LoadError } from "../../components/LoadError";
 import { useEffect, useMemo, useState } from "react";
 import { captionsForProduct } from "../../../shared/captionSearch";
 import type { CaptionSlot } from "../../../shared/captionFilter";
@@ -96,10 +97,15 @@ export const ProductCaptionsSection: React.FC<{ productId: string }> = ({
         <p className="mt-2 text-xs text-app-dim">Picker returned: {picked}</p>
       )}
 
+      {!loaded && !loadError && (
+        <p className="mt-4 text-sm text-app-muted">Loading captions...</p>
+      )}
       {loadError && (
-        <p role="alert" className="mt-4 text-sm text-red-400">
-          Could not load captions: {loadError}
-        </p>
+        <LoadError
+          className="mt-4"
+          message={`Could not load captions: ${loadError}`}
+          onRetry={() => void load()}
+        />
       )}
       {loaded && !loadError && shown.length === 0 && (
         <div className="mt-6 rounded-xl border border-dashed border-edge px-6 py-12 text-center">

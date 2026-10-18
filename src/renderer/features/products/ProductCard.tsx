@@ -1,3 +1,4 @@
+import { Thumb } from "../../components/Thumb";
 import type { ProductSummary } from "../../../shared/products";
 
 export function brollLabel(count: number): string {
@@ -64,22 +65,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         className="flex flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         <div className="aspect-square w-full overflow-hidden bg-black/30">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt=""
-              draggable={false}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div
-              aria-hidden="true"
-              className="flex h-full w-full items-center justify-center text-3xl font-semibold text-white/70"
-              style={{ background: tint(product.fullName) }}
-            >
-              {initials(product.fullName)}
-            </div>
-          )}
+          <Thumb
+            src={imageUrl}
+            draggable={false}
+            className="h-full w-full object-cover"
+            fallback={
+              <div
+                aria-hidden="true"
+                className="flex h-full w-full items-center justify-center text-3xl font-semibold text-white/70"
+                style={{ background: tint(product.fullName) }}
+              >
+                {initials(product.fullName)}
+              </div>
+            }
+          />
         </div>
         <div className="flex flex-col gap-0.5 px-3 py-3">
           <span className="line-clamp-2 text-sm font-medium leading-snug">

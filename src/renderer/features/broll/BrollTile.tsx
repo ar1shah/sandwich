@@ -1,3 +1,4 @@
+import { Thumb } from "../../components/Thumb";
 import { useEffect, useState } from "react";
 import { formatDuration } from "../../../shared/formatDuration";
 import type { Media } from "../../../shared/library";
@@ -33,6 +34,8 @@ export const BrollTile: React.FC<BrollTileProps> = ({
   const [hovered, setHovered] = useState(false);
   const [wanted, setWanted] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // The clip file is gone: no hover preview to wait for.
+  const [videoFailed, setVideoFailed] = useState(false);
   const thumb = mediaThumbUrl(mediaBase, media);
   const video = mediaVideoUrl(mediaBase, media);
   const preview = hovered || option?.active === true;
@@ -70,15 +73,20 @@ export const BrollTile: React.FC<BrollTileProps> = ({
         aria-label={option ? undefined : `Preview ${brollTileLabel(media)}`}
         className="relative block aspect-[9/16] w-full overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
-        {thumb && (
-          <img
-            src={thumb}
-            alt=""
-            draggable={false}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        )}
-        {wanted && video && (
+        <Thumb
+          src={thumb}
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-cover"
+          fallback={
+            <span
+              data-testid="broll-no-preview"
+              className="absolute inset-0 grid place-items-center text-xs text-app-dim"
+            >
+              No preview
+            </span>
+          }
+        />
+        {wanted && video && !videoFailed && (
           <video
             src={video}
             muted
@@ -88,6 +96,7 @@ export const BrollTile: React.FC<BrollTileProps> = ({
             preload="auto"
             aria-hidden="true"
             onPlaying={() => setPlaying(true)}
+            onError={() => setVideoFailed(true)}
             // Fades in once frames are moving, so the thumbnail never blinks to black.
             className={
               "absolute inset-0 h-full w-full object-cover transition-opacity duration-150 " +

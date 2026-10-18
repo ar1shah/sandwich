@@ -5,6 +5,7 @@ import {
   mkdir,
   readdir,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -13,7 +14,13 @@ import { jobTmpDir } from "../../shared/importPaths";
 import type { ExportJobResult } from "../../shared/jobs";
 import type { JobRunContext } from "../../shared/jobScheduler";
 import { buildExportName, type ExportName } from "../../shared/naming";
-import { isRenderable, RecipeSchema, type Recipe } from "../../shared/recipe";
+import {
+  isRenderable,
+  RecipeSchema,
+  SLOTS,
+  type Recipe,
+  type Slot,
+} from "../../shared/recipe";
 import { toAbsolute } from "../db/libraryPaths";
 import type { Repos } from "../db/repos";
 import { AbortError } from "../media/run";
@@ -70,6 +77,33 @@ export class ExportRejectedError extends Error {
 }
 
 export class NameTakenError extends Error {}
+
+const SLOT_WORDS: Record<Slot, string> = {
+  before: "before",
+  after: "after",
+  broll: "b-roll",
+};
+
+// The render would fail deep inside the browser when a source file is gone, with a message
+// nobody can act on. Main is the authority on what is on disk, so look first and name the slot.
+async function assertClipsPresent(root: string, recipe: Recipe): Promise<void> {
+  for (const slot of SLOTS) {
+    const clip = recipe.clips.find((c) => c.slot === slot);
+    let present = false;
+    try {
+      present =
+        clip !== undefined &&
+        (await stat(toAbsolute(root, clip.mediaPath))).isFile();
+    } catch {
+      present = false;
+    }
+    if (!present) {
+      throw new Error(
+        `The ${SLOT_WORDS[slot]} clip is missing from the library. Replace it and export again.`,
+      );
+    }
+  }
+}
 
 function isAbort(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
@@ -197,6 +231,7 @@ export async function exportVideo(
   if (!isRenderable(recipe)) {
     throw new Error("Every slot needs a clip before exporting.");
   }
+  await assertClipsPresent(root, recipe);
 
   const tmpDir = toAbsolute(root, jobTmpDir(jobId));
   const tmpVideo = path.join(tmpDir, "out.mp4");

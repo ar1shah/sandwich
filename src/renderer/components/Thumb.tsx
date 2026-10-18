@@ -5,6 +5,7 @@ type ThumbProps = {
   src: string | null;
   alt?: string;
   className?: string;
+  draggable?: boolean;
   // Shown when there is no src or the image fails to load (a file deleted outside the app).
   fallback: React.ReactNode;
 };
@@ -15,6 +16,7 @@ export const Thumb: React.FC<ThumbProps> = ({
   src,
   alt = "",
   className,
+  draggable,
   fallback,
 }) => {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export const Thumb: React.FC<ThumbProps> = ({
       src={src}
       alt={alt}
       className={className}
+      draggable={draggable}
       onError={() => setFailedSrc(src)}
     />
   );

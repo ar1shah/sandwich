@@ -37,6 +37,7 @@ export const ProductPicker: React.FC<{
   const products = useProductsStore((s) => s.products);
   const mediaBase = useProductsStore((s) => s.mediaBase);
   const load = useProductsStore((s) => s.load);
+  const loaded = useProductsStore((s) => s.loaded);
   const listId = useId();
   const grid = useRef<HTMLUListElement>(null);
   const [query, setQuery] = useState("");
@@ -115,9 +116,11 @@ export const ProductPicker: React.FC<{
       />
       {shown.length === 0 ? (
         <p className="mt-8 text-center text-sm text-app-muted">
-          {products.length === 0
-            ? "No products yet. Add one on the Products page."
-            : "No products match your search."}
+          {!loaded
+            ? "Loading products..."
+            : products.length === 0
+              ? "No products yet. Add one on the Products page."
+              : "No products match your search."}
         </p>
       ) : (
         <ul

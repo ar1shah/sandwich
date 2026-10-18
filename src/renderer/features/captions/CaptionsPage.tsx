@@ -1,3 +1,4 @@
+import { LoadError } from "../../components/LoadError";
 import { useEffect, useMemo, useState } from "react";
 import { CAPTION_SLOTS, type CaptionSlot } from "../../../shared/captionFilter";
 import {
@@ -162,10 +163,14 @@ export const CaptionsPage: React.FC = () => {
         )}
       </div>
 
+      {!loaded && !loadError && (
+        <p className="mt-6 text-sm text-app-muted">Loading captions...</p>
+      )}
       {loadError && (
-        <p role="alert" className="mt-6 text-sm text-red-400">
-          Could not load captions: {loadError}
-        </p>
+        <LoadError
+          message={`Could not load captions: ${loadError}`}
+          onRetry={() => void load()}
+        />
       )}
 
       {loaded && !loadError && captions.length === 0 && (

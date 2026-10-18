@@ -39,7 +39,14 @@ export const EditorSettingsSection: React.FC = () => {
   );
 
   useEffect(() => {
-    void load().then((settings) => setFields(toFields(settings)));
+    load()
+      .then((settings) => setFields(toFields(settings)))
+      .catch((caught: unknown) =>
+        setMessage({
+          ok: false,
+          text: `Could not load your settings: ${caught instanceof Error ? caught.message : String(caught)}`,
+        }),
+      );
   }, [load]);
 
   const parsed = UpdateEditorSettingsSchema.safeParse({

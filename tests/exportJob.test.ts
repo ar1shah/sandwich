@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createJobService } from "../src/main/jobs";
@@ -43,6 +43,11 @@ async function setup() {
     sourceDuration: 8,
     duration: 3,
   })) as Recipe["clips"];
+  // The export looks for its source clips on disk before rendering.
+  mkdirSync(path.join(lib.root, "clips", "2026-10"), { recursive: true });
+  for (const clip of recipe.clips) {
+    writeFileSync(path.join(lib.root, ...clip.mediaPath.split("/")), "clip");
+  }
   const events: JobEvent[] = [];
   const gate = gatedRender();
   const revealed: string[] = [];

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -67,6 +67,11 @@ async function setup(
     productId: product.id,
     recipeJson: JSON.stringify(recipe),
   });
+  // The clips are on disk, as the export checks before it renders.
+  await mkdir(path.join(lib.root, "clips", "2026-10"), { recursive: true });
+  for (const clip of recipe.clips) {
+    await writeFile(path.join(lib.root, ...clip.mediaPath.split("/")), "clip");
+  }
   const outputs: string[] = [];
   const deps: ExportDeps = {
     root: lib.root,
@@ -381,6 +386,27 @@ describe("exportVideo", () => {
     ).rejects.toThrow(/product no longer exists/);
     expect(existsSync(t.tmpDir)).toBe(false);
   });
+
+  it.each([
+    [0, "before"],
+    [1, "after"],
+    [2, "b-roll"],
+  ])(
+    "refuses before rendering when the %s clip file is gone, naming the slot",
+    async (index, word) => {
+      const t = await setup();
+      const gone = t.recipe.clips[index]?.mediaPath ?? "";
+      await rm(path.join(t.root, ...gone.split("/")));
+      await expect(exportVideo(t.recipe, t.context(), t.deps)).rejects.toThrow(
+        `The ${word} clip is missing from the library.`,
+      );
+      // Nothing was rendered, nothing was written, and the draft is still a draft.
+      expect(t.outputs).toEqual([]);
+      expect(existsSync(t.tmpDir)).toBe(false);
+      expect(existsSync(t.exportsDir)).toBe(false);
+      expect(t.repos.videos.get(t.recipe.id)?.status).toBe("draft");
+    },
+  );
 });
 
 describe("claim", () => {

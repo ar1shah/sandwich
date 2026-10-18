@@ -1,3 +1,4 @@
+import { LoadError } from "../../components/LoadError";
 import { useEffect, useMemo, useState } from "react";
 import { filterProducts, orderProducts } from "../../../shared/productSearch";
 import type { ProductSummary } from "../../../shared/products";
@@ -89,10 +90,14 @@ export const ProductsPage: React.FC = () => {
         <p className="mt-2 text-xs text-app-dim">Picker returned: {picked}</p>
       )}
 
+      {!loaded && !loadError && (
+        <p className="mt-6 text-sm text-app-muted">Loading products...</p>
+      )}
       {loadError && (
-        <p role="alert" className="mt-6 text-sm text-red-400">
-          Could not load products: {loadError}
-        </p>
+        <LoadError
+          message={`Could not load products: ${loadError}`}
+          onRetry={() => void load()}
+        />
       )}
 
       {loaded && !loadError && active.length === 0 && (
