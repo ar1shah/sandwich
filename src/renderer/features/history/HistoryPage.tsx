@@ -1,155 +1,170 @@
-import { useCallback, useEffect, useState } from "react";
-import { summarizeDraft, type DraftSummary } from "../../../shared/drafts";
-import { formatDuration } from "../../../shared/formatDuration";
-import { Modal } from "../../components/Modal";
+import { useEffect, useMemo, useState } from "react";
+import { groupByProduct, type VideoSummary } from "../../../shared/history";
 import { useEditorStore } from "../editor/editorStore";
+import { mediaThumbUrl } from "../media/mediaUrls";
 import { useProductsStore } from "../products/productsStore";
 import { useNavStore } from "../shell/navStore";
+import { DeleteVideoDialog } from "./DeleteVideoDialog";
+import { HistoryRow } from "./HistoryRow";
+import { useHistoryStore } from "./historyStore";
 
 const SECONDARY =
   "rounded-md border border-edge px-3 py-1.5 text-sm transition-colors hover:bg-white/5";
 
-function when(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
-// Stub for step 3.6: lists drafts so nothing is lost when the editor is closed. Exported
-// videos are added later.
+// Every video of the library, grouped by product: drafts to continue, exported videos to find
+// again, failed exports to retry.
 export const HistoryPage: React.FC = () => {
   const products = useProductsStore((s) => s.products);
+  const mediaBase = useProductsStore((s) => s.mediaBase);
   const loadProducts = useProductsStore((s) => s.load);
+  const videos = useHistoryStore((s) => s.videos);
+  const fileStates = useHistoryStore((s) => s.fileStates);
+  const thumbs = useHistoryStore((s) => s.thumbs);
+  const loadError = useHistoryStore((s) => s.error);
+  const reload = useHistoryStore((s) => s.load);
   const openDraft = useEditorStore((s) => s.openDraft);
-  const closeDraftIfOpen = useEditorStore((s) => s.draft?.id ?? null);
+  const openDraftId = useEditorStore((s) => s.draft?.id ?? null);
   const setPage = useNavStore((s) => s.setPage);
-  const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<DraftSummary | null>(null);
-
-  const reload = useCallback(async () => {
-    try {
-      const rows = await window.api.videos.list({ status: "draft" });
-      setDrafts(rows.map(summarizeDraft));
-      setError(null);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-    }
-  }, []);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<VideoSummary | null>(null);
 
   useEffect(() => {
     void loadProducts();
     void reload();
   }, [loadProducts, reload]);
 
+  const groups = useMemo(
+    () => groupByProduct(videos ?? [], products),
+    [videos, products],
+  );
+
   async function open(id: string) {
+    setNotice(null);
     const result = await openDraft(id);
     if (result.ok) {
       setPage("new-video");
     } else {
-      setError(result.message);
+      setNotice(result.message);
     }
   }
 
-  async function confirmDelete(draft: DraftSummary) {
-    // The open draft is closed first so its next save cannot bring the row back.
-    if (closeDraftIfOpen === draft.id) {
-      await useEditorStore.getState().closeDraft();
+  async function reveal(id: string) {
+    setNotice(null);
+    try {
+      const result = await window.api.videos.reveal(id);
+      if (!result.ok) {
+        setNotice(result.message);
+        // The file is gone: refresh so the row says so.
+        await reload();
+      }
+    } catch (caught) {
+      setNotice(messageOf(caught));
     }
-    const result = await window.api.videos.remove(draft.id);
-    if (!result.ok) {
-      setError(result.message);
-    }
-    setDeleting(null);
-    await reload();
   }
 
-  const nameOf = (productId: string) =>
-    products.find((p) => p.id === productId)?.fullName ?? "Unknown product";
+  async function confirmDelete(
+    video: VideoSummary,
+    deleteFile: boolean,
+  ): Promise<string | null> {
+    try {
+      // The open draft is closed first so its next save cannot bring the row back.
+      if (openDraftId === video.id) {
+        await useEditorStore.getState().closeDraft();
+      }
+      const result = await window.api.videos.remove(video.id, { deleteFile });
+      if (!result.ok) {
+        return result.message;
+      }
+      setNotice(result.value.warning);
+      setDeleting(null);
+      await reload();
+      return null;
+    } catch (caught) {
+      return messageOf(caught);
+    }
+  }
 
   return (
     <section className="mt-6 max-w-3xl">
-      <h2 className="text-xs font-medium uppercase tracking-wide text-app-dim">
-        Drafts
-      </h2>
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-red-400">
-          {error}
+      {loadError && (
+        <div role="alert" className="mt-3 text-sm text-red-400">
+          <p className="break-words">{loadError}</p>
+          <button
+            type="button"
+            className={`${SECONDARY} mt-2 text-app-text`}
+            onClick={() => void reload()}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+      {notice && (
+        <p role="status" className="mt-3 break-words text-sm text-amber-300">
+          {notice}
         </p>
       )}
-      {drafts && drafts.length === 0 && (
-        <p className="mt-4 text-sm text-app-muted">
-          No drafts yet. A draft appears here as soon as you add a clip.
-        </p>
+      {videos === null && !loadError && (
+        <p className="mt-4 text-sm text-app-muted">Loading...</p>
       )}
-      {drafts && drafts.length > 0 && (
-        <ul aria-label="Drafts" className="mt-4 space-y-2">
-          {drafts.map((draft) => (
-            <li
-              key={draft.id}
-              data-testid="draft-row"
-              className="flex items-center gap-3 rounded-xl border border-edge bg-panel px-4 py-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {draft.readable
-                    ? nameOf(draft.productId)
-                    : "Unreadable draft"}
-                </p>
-                <p className="text-xs text-app-muted">
-                  {draft.readable
-                    ? `${draft.filledSlots} of 3 clips · ${formatDuration(draft.totalDuration)} · `
-                    : `${nameOf(draft.productId)} · `}
-                  {when(draft.updatedAt)}
-                </p>
-              </div>
-              {draft.readable && (
-                <button
-                  type="button"
-                  className={SECONDARY}
-                  onClick={() => void open(draft.id)}
-                >
-                  Open
-                </button>
-              )}
-              <button
-                type="button"
-                className={SECONDARY}
-                onClick={() => setDeleting(draft)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {deleting && (
-        <Modal
-          title="Delete draft"
-          onClose={() => setDeleting(null)}
-          widthClass="max-w-md"
-        >
-          <p className="mt-3 text-sm text-app-muted">
-            This draft is deleted. Your clips stay in the library. This
-            can&apos;t be undone.
+      {videos && videos.length === 0 && (
+        <div className="mt-4">
+          <p className="text-sm text-app-muted">
+            No videos yet. A draft appears here as soon as you add a clip, and
+            exported videos stay here.
           </p>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              type="button"
-              autoFocus
-              className={SECONDARY}
-              onClick={() => setDeleting(null)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-              onClick={() => void confirmDelete(deleting)}
-            >
-              Delete
-            </button>
-          </div>
-        </Modal>
+          <button
+            type="button"
+            className={`${SECONDARY} mt-3`}
+            onClick={() => setPage("new-video")}
+          >
+            New video
+          </button>
+        </div>
+      )}
+      {groups.map((group) => (
+        <section
+          key={group.productId}
+          aria-label={group.productName}
+          className="mt-6 first:mt-4"
+        >
+          <h2 className="text-xs font-medium uppercase tracking-wide text-app-dim">
+            {group.productName}
+            {group.archived ? " (archived)" : ""}
+          </h2>
+          <ul aria-label={group.productName} className="mt-3 space-y-2">
+            {group.videos.map((video) => {
+              const thumbPath = video.beforeMediaPath
+                ? thumbs[video.beforeMediaPath]
+                : null;
+              return (
+                <HistoryRow
+                  key={video.id}
+                  video={video}
+                  thumbUrl={
+                    thumbPath ? mediaThumbUrl(mediaBase, { thumbPath }) : null
+                  }
+                  fileState={fileStates[video.id]}
+                  platform={window.api.platform}
+                  onOpen={() => void open(video.id)}
+                  onReveal={() => void reveal(video.id)}
+                  onDelete={() => setDeleting(video)}
+                />
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+      {deleting && (
+        <DeleteVideoDialog
+          video={deleting}
+          fileState={fileStates[deleting.id]}
+          onConfirm={(deleteFile) => confirmDelete(deleting, deleteFile)}
+          onClose={() => setDeleting(null)}
+        />
       )}
     </section>
   );

@@ -2,6 +2,7 @@ import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { z } from "zod";
 import {
   VIDEOS_EXPORT_CHANNEL,
+  VIDEOS_EXPORT_FILES_CHANNEL,
   VIDEOS_GET_CHANNEL,
   VIDEOS_LIST_CHANNEL,
   VIDEOS_REMOVE_CHANNEL,
@@ -9,7 +10,12 @@ import {
   VIDEOS_SAVE_DRAFT_CHANNEL,
 } from "../../shared/ipc";
 import { VIDEO_STATUSES } from "../../shared/library";
-import { SaveDraftInputSchema, VideoIdSchema } from "../../shared/videos";
+import {
+  ExportFilesInputSchema,
+  RemoveVideoInputSchema,
+  SaveDraftInputSchema,
+  VideoIdSchema,
+} from "../../shared/videos";
 import type { VideoService } from "../videos/videoService";
 
 const ListOptionsSchema = z
@@ -59,8 +65,13 @@ export function registerVideosIpc({
     assertTrustedSender(event);
     return videos.get(VideoIdSchema.parse(id));
   });
-  ipcMain.handle(VIDEOS_REMOVE_CHANNEL, (event, id: unknown) => {
+  ipcMain.handle(VIDEOS_REMOVE_CHANNEL, (event, input: unknown) => {
     assertTrustedSender(event);
-    return videos.remove(VideoIdSchema.parse(id));
+    const { id, deleteFile } = RemoveVideoInputSchema.parse(input);
+    return videos.remove(id, { deleteFile });
+  });
+  ipcMain.handle(VIDEOS_EXPORT_FILES_CHANNEL, (event, ids: unknown) => {
+    assertTrustedSender(event);
+    return videos.exportFiles(ExportFilesInputSchema.parse(ids));
   });
 }

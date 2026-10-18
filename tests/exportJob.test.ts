@@ -127,7 +127,7 @@ describe("export job + video service", () => {
       ok: false,
       code: "exporting",
     });
-    expect(t.videos.remove(t.recipe.id)).toMatchObject({
+    expect(await t.videos.remove(t.recipe.id)).toMatchObject({
       ok: false,
       code: "exporting",
     });
@@ -187,11 +187,14 @@ describe("export job + video service", () => {
     expect(t.repos.videos.get(t.recipe.id)?.status).toBe("draft");
 
     t.repos.videos.update(t.recipe.id, { status: "failed" });
-    expect(t.videos.remove(t.recipe.id)).toEqual({ ok: true, value: true });
+    expect(await t.videos.remove(t.recipe.id)).toEqual({
+      ok: true,
+      value: { warning: null },
+    });
     expect(t.repos.videos.get(t.recipe.id)).toBeNull();
   });
 
-  it("an exported video can be neither saved over nor deleted", async () => {
+  it("an exported video cannot be saved over, but its record can be deleted (3.6)", async () => {
     const t = await setup();
     t.repos.videos.upsertDraft({
       id: t.recipe.id,
@@ -206,10 +209,11 @@ describe("export job + video service", () => {
       ok: false,
       code: "not-draft",
     });
-    expect(t.videos.remove(t.recipe.id)).toMatchObject({
-      ok: false,
-      code: "not-draft",
+    expect(await t.videos.remove(t.recipe.id)).toEqual({
+      ok: true,
+      value: { warning: null },
     });
+    expect(t.repos.videos.get(t.recipe.id)).toBeNull();
   });
 });
 

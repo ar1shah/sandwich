@@ -310,6 +310,8 @@ registerVideosIpc({
     getRoot: () => libraryManager.getRoot(),
     // A wrapper, not shell.showItemInFolder itself: a test replaces that function at runtime.
     reveal: (absolutePath) => shell.showItemInFolder(absolutePath),
+    // Same reason: a test replaces shell.trashItem so it never fills the real Trash.
+    trash: (absolutePath) => shell.trashItem(absolutePath),
   }),
   assertTrustedSender,
 });

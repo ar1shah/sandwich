@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises";
+import path from "node:path";
 import type { Video, VideoStatus } from "../../shared/library";
 import { checkRelativeLibraryPath } from "../../shared/libraryPaths";
 import { isRenderable, type Recipe } from "../../shared/recipe";
@@ -8,12 +9,15 @@ import {
   NOT_A_DRAFT_MESSAGE,
   NOT_RENDERABLE_MESSAGE,
   PRODUCT_GONE_MESSAGE,
+  type ExportFileState,
   type ExportStarted,
+  type RemovedVideo,
   type SavedDraft,
   type VideoError,
   type VideoResult,
 } from "../../shared/videos";
 import { toAbsolute } from "../db/libraryPaths";
+import { resolveInsideReal } from "../media/pathGuard";
 import type { Repos } from "../db/repos";
 import { ExportRejectedError } from "../render/exportVideo";
 
@@ -32,7 +36,27 @@ export type VideoServiceDeps = {
   // Shows a file in Finder / Explorer. A wrapper at the call site, not shell.showItemInFolder
   // itself, so a test can replace shell.showItemInFolder at runtime.
   reveal?: (absolutePath: string) => void;
+  // Moves a file to the OS Trash (shell.trashItem). A wrapper at the call site for the same
+  // reason as `reveal`. Must reject when the file cannot be trashed.
+  trash?: (absolutePath: string) => Promise<void>;
 };
+
+const EXPORTS_DIR = "exports";
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code: unknown }).code)
+    : undefined;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// The sidecar sits next to the mp4 with the same base name (naming.ts).
+function sidecarPathOf(exportPath: string): string {
+  return exportPath.replace(/\.mp4$/i, "") + ".recipe.json";
+}
 
 function fail(code: VideoError["code"], message: string): VideoError {
   return { ok: false, code, message };
@@ -46,6 +70,83 @@ export function createVideoService(deps: VideoServiceDeps) {
       throw new Error("Open a library before using videos.");
     }
     return library.repos;
+  }
+
+  // Moves the mp4 and its sidecar to the Trash; see remove().
+  async function trashExportFiles(
+    exportPath: string,
+  ): Promise<VideoResult<RemovedVideo>> {
+    const root = deps.getRoot?.() ?? null;
+    if (!root || !deps.trash) {
+      return fail("delete-failed", "Deleting files is not available.");
+    }
+    const exportsPrefix = `${EXPORTS_DIR}/`;
+    if (!exportPath.startsWith(exportsPrefix)) {
+      return fail(
+        "delete-failed",
+        "That file is not inside the exports folder, so it was left alone.",
+      );
+    }
+    const exportsRoot = path.join(root, EXPORTS_DIR);
+
+    // realpath containment: a symlink or `..` cannot lead out of exports/.
+    async function trashOne(
+      relative: string,
+    ): Promise<"trashed" | "missing" | "outside"> {
+      const resolved = await resolveInsideReal(
+        exportsRoot,
+        relative.slice(exportsPrefix.length).split("/"),
+      );
+      if (resolved.kind === "outside") {
+        return "outside";
+      }
+      if (resolved.kind !== "ok") {
+        return "missing";
+      }
+      try {
+        await deps.trash?.(resolved.path);
+      } catch (error) {
+        if (errorCode(error) === "ENOENT") {
+          return "missing";
+        }
+        throw error;
+      }
+      return "trashed";
+    }
+
+    try {
+      if ((await trashOne(exportPath)) === "outside") {
+        return fail(
+          "delete-failed",
+          "That file is not inside the exports folder, so it was left alone.",
+        );
+      }
+    } catch (error) {
+      return fail(
+        "delete-failed",
+        `The video file could not be moved to the Trash: ${messageOf(error)}`,
+      );
+    }
+
+    try {
+      if ((await trashOne(sidecarPathOf(exportPath))) === "outside") {
+        return {
+          ok: true,
+          value: {
+            warning:
+              "The video was moved to the Trash. Its recipe file was left alone because it is outside the exports folder.",
+          },
+        };
+      }
+    } catch (error) {
+      return {
+        ok: true,
+        value: {
+          warning: `The video was moved to the Trash, but its recipe file could not be: ${messageOf(error)}`,
+        },
+      };
+    }
+    return { ok: true, value: { warning: null } };
   }
 
   const service = {
@@ -158,21 +259,64 @@ export function createVideoService(deps: VideoServiceDeps) {
       return { ok: true, value: true };
     },
 
-    // Drafts and failed exports can be deleted here; an exported video's file and history stay.
-    remove(id: string): VideoResult<true> {
+    // Whether each exported row's file is still there, for the History page. Rows that are
+    // not exported (or unknown ids) are left out.
+    async exportFiles(ids: string[]): Promise<Record<string, ExportFileState>> {
+      const repos = requireRepos();
+      const root = deps.getRoot?.() ?? null;
+      const result: Record<string, ExportFileState> = {};
+      await Promise.all(
+        ids.map(async (id) => {
+          const video = repos.videos.get(id);
+          if (!video || video.status !== "exported") {
+            return;
+          }
+          if (!root || video.exportPath === null) {
+            result[id] = "missing";
+            return;
+          }
+          try {
+            await access(toAbsolute(root, video.exportPath));
+            result[id] = "present";
+          } catch {
+            result[id] = "missing";
+          }
+        }),
+      );
+      return result;
+    },
+
+    // Deletes the record. An exported video's file and sidecar are only touched when
+    // `deleteFile` is set, and then they are moved to the Trash (never unlinked): the mp4
+    // first, and the record stays if that fails so the user can retry; a sidecar that cannot
+    // be trashed is only a warning. The record is deleted last. Caption use counts are not
+    // decremented (DECISIONS #39).
+    async remove(
+      id: string,
+      options: { deleteFile?: boolean } = {},
+    ): Promise<VideoResult<RemovedVideo>> {
       const repos = requireRepos();
       const video = repos.videos.get(id);
       if (!video) {
-        return fail("not-found", "That draft no longer exists.");
-      }
-      if (video.status === "exported") {
-        return fail("not-draft", NOT_A_DRAFT_MESSAGE);
+        return fail("not-found", "That video no longer exists.");
       }
       if (deps.exports?.activeJobId(id)) {
         return fail("exporting", EXPORTING_MESSAGE);
       }
+      let warning: string | null = null;
+      if (
+        options.deleteFile &&
+        video.status === "exported" &&
+        video.exportPath !== null
+      ) {
+        const outcome = await trashExportFiles(video.exportPath);
+        if (!outcome.ok) {
+          return outcome;
+        }
+        warning = outcome.value.warning;
+      }
       repos.videos.remove(id);
-      return { ok: true, value: true };
+      return { ok: true, value: { warning } };
     },
   };
   return service;

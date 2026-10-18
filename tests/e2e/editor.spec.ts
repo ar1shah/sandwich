@@ -73,7 +73,7 @@ test("build a draft, restart, close it, and find it in History", async () => {
 
   await test.step("an untouched draft is not listed in History", async () => {
     await nav("History");
-    await expect(page.getByText("No drafts yet")).toBeVisible();
+    await expect(page.getByText(/^No videos yet/)).toBeVisible();
     await nav("New Video");
     await expect(slot("before")).toBeVisible();
   });
@@ -107,7 +107,7 @@ test("build a draft, restart, close it, and find it in History", async () => {
 
   await test.step("the draft is listed in History", async () => {
     await nav("History");
-    const row = page.getByTestId("draft-row");
+    const row = page.getByTestId("history-row");
     await expect(row).toHaveCount(1);
     await expect(row).toContainText(PRODUCT);
     await expect(row).toContainText("3 of 3 clips");
@@ -137,7 +137,7 @@ test("build a draft, restart, close it, and find it in History", async () => {
     await expect(page.getByRole("listbox", { name: "Products" })).toBeVisible();
     await expect(slot("before")).toHaveCount(0);
     await nav("History");
-    await expect(page.getByTestId("draft-row")).toHaveCount(1);
+    await expect(page.getByTestId("history-row")).toHaveCount(1);
   });
 
   await test.step("Open from History brings the draft back", async () => {
@@ -165,6 +165,6 @@ test("build a draft, restart, close it, and find it in History", async () => {
     const dialog = page.getByRole("dialog", { name: "Delete draft" });
     await dialog.getByRole("button", { name: "Delete" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByText("No drafts yet")).toBeVisible();
+    await expect(page.getByText(/^No videos yet/)).toBeVisible();
   });
 });
