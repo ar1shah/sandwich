@@ -881,3 +881,18 @@ describe("clip controls and captions", () => {
     expect(editor().draft!.clips[0].caption).toBeNull();
   });
 });
+
+describe("openDraft on the draft that is already open", () => {
+  it("rechecks its clips instead of trusting what it knew", async () => {
+    await startWithClip();
+    ctx.state.byPaths = [
+      {
+        path: "clips/2026-10/m1.mp4",
+        media: media("m1", 12),
+        fileExists: false,
+      },
+    ];
+    expect(await editor().openDraft(editor().draft!.id)).toEqual({ ok: true });
+    expect(editor().missing.before).toBe(true);
+  });
+});

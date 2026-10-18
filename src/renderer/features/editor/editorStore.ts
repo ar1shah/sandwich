@@ -421,6 +421,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         return { ok: false, message: EXPORT_BUSY_MESSAGE };
       }
       if (get().draft?.id === id) {
+        // Already open: still look for clips deleted while it sat in the background.
+        await get().recheckMissing();
         return { ok: true };
       }
       const epoch = get().epoch;

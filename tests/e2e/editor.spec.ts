@@ -109,7 +109,9 @@ test("build a draft, restart, close it, and find it in History", async () => {
     await nav("History");
     const row = page.getByTestId("history-row");
     await expect(row).toHaveCount(1);
-    await expect(row).toContainText(PRODUCT);
+    await expect(
+      page.getByRole("heading", { name: PRODUCT, exact: true }),
+    ).toBeVisible();
     await expect(row).toContainText("3 of 3 clips");
   });
 
