@@ -69,7 +69,8 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 3.5 Export (naming, verify, sidecar, Show in Finder)
   - [x] You: export 2 videos with the same hook on the same day, the second gets `_02`
   - [x] You: the `.recipe.json` sidecar sits next to the mp4
-- [ ] 3.6 History + hardening + packaged run-through + USER_GUIDE.md
+- [x] 3.6 History + hardening + packaged run-through + USER_GUIDE.md
+  - [ ] You: read `docs/USER_GUIDE.md` start to finish and try the install steps on a clean Mac account (or send it to your partner)
 - [ ] **Phase 3 exit test** (3 real videos posted as TikTok drafts, under 3 min each)
 - [ ] MVP sent to partner, one week of real use, notes in `docs/FEEDBACK.md`
 

@@ -76,4 +76,4 @@ Rules: one branch per step (`step/2.3-products`), PR into `main`, the other pers
 | Slow renders | Batch mode painful | Measure in 0.4 and 1.5; try hardware encoding; tune concurrency |
 | Library on a synced drive corrupts DB | Data loss | Warn if library path is inside Dropbox/Drive/iCloud; sharing done via Supabase later |
 | Remotion license threshold | Legal | Free under 4 people involved; recheck before growing or selling |
-| Unsigned app warnings | Friction installing | Right-click → Open for now; Apple Developer account if distributing |
+| Unsigned app warnings | Friction installing; macOS 15 (Sequoia) removed the right-click → Open bypass | Move the app to /Applications, open it once, then System Settings > Privacy & Security > Open Anyway (or `xattr -cr /Applications/Sandwich.app`); Apple Developer account if distributing |
