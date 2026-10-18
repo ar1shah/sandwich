@@ -1,9 +1,11 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { z } from "zod";
 import {
+  VIDEOS_EXPORT_CHANNEL,
   VIDEOS_GET_CHANNEL,
   VIDEOS_LIST_CHANNEL,
   VIDEOS_REMOVE_CHANNEL,
+  VIDEOS_REVEAL_CHANNEL,
   VIDEOS_SAVE_DRAFT_CHANNEL,
 } from "../../shared/ipc";
 import { VIDEO_STATUSES } from "../../shared/library";
@@ -32,6 +34,22 @@ export function registerVideosIpc({
       };
     }
     return videos.saveDraft(parsed.data);
+  });
+  ipcMain.handle(VIDEOS_EXPORT_CHANNEL, (event, recipe: unknown) => {
+    assertTrustedSender(event);
+    const parsed = SaveDraftInputSchema.safeParse(recipe);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        code: "invalid",
+        message: parsed.error.issues[0]?.message ?? "The recipe is not valid.",
+      };
+    }
+    return videos.export(parsed.data);
+  });
+  ipcMain.handle(VIDEOS_REVEAL_CHANNEL, (event, id: unknown) => {
+    assertTrustedSender(event);
+    return videos.reveal(VideoIdSchema.parse(id));
   });
   ipcMain.handle(VIDEOS_LIST_CHANNEL, (event, options: unknown) => {
     assertTrustedSender(event);

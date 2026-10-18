@@ -12,6 +12,8 @@ export function createRepos(db: Db, overrides: Partial<RepoDeps> = {}) {
     media: createMediaRepo(db, deps),
     captions: createCaptionsRepo(db, deps),
     videos: createVideosRepo(db, deps),
+    // Runs `fn` in one SQLite transaction: all of its repo writes commit together, or none do.
+    transaction: <T>(fn: () => T): T => db.transaction(fn)(),
   };
 }
 

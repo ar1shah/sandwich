@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  shell,
   type IpcMainInvokeEvent,
 } from "electron";
 import path from "node:path";
@@ -38,6 +39,8 @@ import { processProductImage } from "./media/productImage";
 import { createProductService } from "./products/productService";
 import { getFfCapabilities } from "./media/capabilities";
 import { startMediaServer, type MediaServer } from "./media/mediaServer";
+import { prepareServeUrl, renderRecipe } from "./render/render-recipe";
+import { verifyRender } from "./render/verify";
 import {
   getRenderRecipeTestArgs,
   runRenderRecipeTest,
@@ -187,6 +190,25 @@ const jobEventThrottle = createJobEventThrottle({
   },
 });
 
+// The Remotion serve URL, made once per session: packaged builds use the prebuilt bundle, dev
+// builds bundle on the first export. A rejected promise is dropped, so the next export retries.
+let serveUrlPromise: Promise<string> | null = null;
+function getServeUrl(
+  onUpdate: Parameters<typeof prepareServeUrl>[0]["onUpdate"],
+): Promise<string> {
+  serveUrlPromise ??= prepareServeUrl({
+    isPackaged: app.isPackaged,
+    projectRoot: app.getAppPath(),
+    onUpdate,
+  })
+    .then((prepared) => prepared.serveUrl)
+    .catch((error: unknown) => {
+      serveUrlPromise = null;
+      throw error;
+    });
+  return serveUrlPromise;
+}
+
 const jobService = createJobService({
   getLibrary: () => {
     const root = libraryManager.getRoot();
@@ -195,6 +217,23 @@ const jobService = createJobService({
   },
   onEvent: (event) => jobEventThrottle.push(event),
   steps: createFfmpegSteps(getAppFfPaths()),
+  exporter: {
+    render: async (recipe, { outputPath, signal, onProgress }) => {
+      const mediaBaseUrl = (await ensureMediaServer()).baseUrl;
+      const serveUrl = await getServeUrl(onProgress);
+      signal.throwIfAborted();
+      return renderRecipe(recipe, {
+        outputPath,
+        mediaBaseUrl,
+        isPackaged: app.isPackaged,
+        projectRoot: app.getAppPath(),
+        serveUrl,
+        onProgress,
+        signal,
+      });
+    },
+    verify: (options) => verifyRender({ ...options, ffPaths: getAppFfPaths() }),
+  },
 });
 
 // App-wide media server. Serves the active library; with no library yet requests get 503.
@@ -264,6 +303,13 @@ registerVideosIpc({
       const repos = libraryManager.getRepos();
       return repos ? { repos } : null;
     },
+    exports: {
+      start: (recipe) => jobService.exportVideo(recipe),
+      activeJobId: (videoId) => jobService.activeExportJobId(videoId),
+    },
+    getRoot: () => libraryManager.getRoot(),
+    // A wrapper, not shell.showItemInFolder itself: a test replaces that function at runtime.
+    reveal: (absolutePath) => shell.showItemInFolder(absolutePath),
   }),
   assertTrustedSender,
 });

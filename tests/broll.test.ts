@@ -6,7 +6,11 @@ import { createJobService } from "../src/main/jobs";
 import { importClip } from "../src/main/jobs/importClip";
 import { ensureLayout } from "../src/main/library/openLibrary";
 import { createJobScheduler } from "../src/shared/jobScheduler";
-import { ImportBrollInputSchema, type JobEvent } from "../src/shared/jobs";
+import {
+  ImportBrollInputSchema,
+  importedMediaId,
+  type JobEvent,
+} from "../src/shared/jobs";
 import { fakeSteps } from "./helpers/fakeImportSteps";
 import { makeTempDir, makeTempLibraryDb } from "./helpers/db";
 
@@ -163,7 +167,7 @@ describe("job service importBroll", () => {
     expect(events.every((e) => e.job.productId === t.product.id)).toBe(true);
     const done = events.filter((e) => e.type === "done");
     expect(done).toHaveLength(3);
-    expect(done.every((e) => e.job.result?.mediaId)).toBe(true);
+    expect(done.every((e) => importedMediaId(e.job.result))).toBe(true);
     expect(
       t.repos.media.list({ kind: "broll", productId: t.product.id }),
     ).toHaveLength(3);

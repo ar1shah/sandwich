@@ -311,6 +311,44 @@ describe("captions", () => {
 });
 
 describe("videos", () => {
+  it("a save revives a failed row to a draft but never touches an exported one", async () => {
+    const { repos } = await makeTempLibraryDb();
+    const p = repos.products.create(product("a", "A"));
+    repos.videos.upsertDraft({ id: "v1", productId: p.id, recipeJson: "1" });
+    repos.videos.update("v1", { status: "failed" });
+    expect(
+      repos.videos.upsertDraft({ id: "v1", productId: p.id, recipeJson: "2" }),
+    ).toMatchObject({ status: "draft", recipeJson: "2" });
+
+    repos.videos.update("v1", {
+      status: "exported",
+      exportPath: "exports/a/d/a.mp4",
+    });
+    expect(
+      repos.videos.upsertDraft({ id: "v1", productId: p.id, recipeJson: "3" }),
+    ).toBeNull();
+    expect(repos.videos.get("v1")).toMatchObject({
+      status: "exported",
+      recipeJson: "2",
+    });
+  });
+
+  it("transaction commits together or rolls back together", async () => {
+    const { repos } = await makeTempLibraryDb();
+    const c = repos.captions.create({ text: "a", slot: "any" });
+    expect(() =>
+      repos.transaction(() => {
+        repos.captions.incrementUseCount(c.id);
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+    expect(repos.captions.get(c.id)?.useCount).toBe(0);
+    repos.transaction(() => {
+      repos.captions.incrementUseCount(c.id);
+    });
+    expect(repos.captions.get(c.id)?.useCount).toBe(1);
+  });
+
   it("creates drafts, lists by product and status, updates and removes", async () => {
     const { repos } = await makeTempLibraryDb();
     const a = repos.products.create(product("a", "A"));

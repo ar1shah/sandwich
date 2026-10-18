@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { exportBlocker } from "../../../shared/exportBlocker";
 import { SLOTS } from "../../../shared/recipe";
 import { BrollPicker } from "../broll/BrollPicker";
 import { productImageUrl } from "../products/productImageUrl";
@@ -6,6 +7,7 @@ import { useProductsStore } from "../products/productsStore";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { ClipPanel } from "../trim/ClipPanel";
 import { useEditorStore } from "./editorStore";
+import { ExportPanel } from "./ExportPanel";
 import { SlotCard } from "./SlotCard";
 
 // Three columns: slots (left), preview (center), clip panel (right: trim in 3.3, then 3.4).
@@ -15,6 +17,10 @@ export const EditorLayout: React.FC = () => {
   const notice = useEditorStore((s) => s.notice);
   const saveError = useEditorStore((s) => s.saveError);
   const closeDraft = useEditorStore((s) => s.closeDraft);
+  const exportVideo = useEditorStore((s) => s.exportVideo);
+  const exportState = useEditorStore((s) => s.exportState);
+  const pending = useEditorStore((s) => s.pending);
+  const missing = useEditorStore((s) => s.missing);
   const setBroll = useEditorStore((s) => s.setBroll);
   const dismissNotice = useEditorStore((s) => s.dismissNotice);
   const mediaBase = useProductsStore((s) => s.mediaBase);
@@ -24,6 +30,11 @@ export const EditorLayout: React.FC = () => {
     return null;
   }
   const image = productImageUrl(mediaBase, product);
+  const blocker = exportBlocker({
+    draft,
+    pendingSlots: SLOTS.filter((slot) => pending[slot]),
+    missingSlots: SLOTS.filter((slot) => missing[slot]),
+  });
 
   return (
     <div className="mt-6 flex min-h-0 flex-1 flex-col">
@@ -39,6 +50,15 @@ export const EditorLayout: React.FC = () => {
           <p className="truncate text-sm font-medium">{product.fullName}</p>
           <p className="text-xs text-app-muted">Draft saves automatically.</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void exportVideo()}
+          disabled={blocker !== null || exportState.kind !== "idle"}
+          title={blocker ?? "Render this video and save it to your library"}
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+          Export
+        </button>
         <button
           type="button"
           onClick={() => void closeDraft()}
@@ -79,6 +99,8 @@ export const EditorLayout: React.FC = () => {
 
         <ClipPanel />
       </div>
+
+      <ExportPanel />
 
       {pickingBroll && (
         <BrollPicker

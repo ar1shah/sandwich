@@ -20,7 +20,7 @@ import type { JobEvent, JobInfo } from "./jobs";
 import type { MediaPathCheck } from "./mediaLookup";
 import type { EditorSettings, UpdateEditorSettings } from "./settings";
 import type { Recipe } from "./recipe";
-import type { SavedDraft, VideoResult } from "./videos";
+import type { ExportStarted, SavedDraft, VideoResult } from "./videos";
 import type {
   CreateProductRequest,
   ProductResult,
@@ -46,6 +46,8 @@ export const VIDEOS_SAVE_DRAFT_CHANNEL = "videos:saveDraft";
 export const VIDEOS_LIST_CHANNEL = "videos:list";
 export const VIDEOS_GET_CHANNEL = "videos:get";
 export const VIDEOS_REMOVE_CHANNEL = "videos:remove";
+export const VIDEOS_EXPORT_CHANNEL = "videos:export";
+export const VIDEOS_REVEAL_CHANNEL = "videos:reveal";
 export const BROLL_LIST_CHANNEL = "broll:list";
 export const BROLL_IMPORT_CHANNEL = "broll:import";
 export const BROLL_REMOVE_CHANNEL = "broll:remove";
@@ -66,6 +68,9 @@ export const JOB_EVENT_CHANNEL = "job:event";
 export const DEV_IMPORT_FIXTURES_CHANNEL = "dev:importFixtures";
 
 export type SandwichApi = {
+  // process.platform of the app ("darwin", "win32", ...), for wording only ("Show in Finder"
+  // or "Show in Explorer").
+  platform: string;
   app: {
     version: () => Promise<string>;
   };
@@ -124,8 +129,14 @@ export type SandwichApi = {
     // Newest-updated first. Rows carry the raw recipe JSON; use summarizeDraft/parseDraftRecipe.
     list: (options?: { status?: VideoStatus }) => Promise<Video[]>;
     get: (id: string) => Promise<Video | null>;
-    // Drafts only.
+    // Drafts (and failed exports) only.
     remove: (id: string) => Promise<VideoResult<true>>;
+    // Saves the draft, then queues a render job. Progress and the result come on
+    // jobs.onEvent (type "render"; result is an ExportJobResult). { ok: false } = invalid
+    // recipe, a slot without a clip, already exporting, or the product is gone.
+    export: (recipe: Recipe) => Promise<VideoResult<ExportStarted>>;
+    // Opens the exported file in Finder / Explorer. Main resolves the path from the row.
+    reveal: (id: string) => Promise<VideoResult<true>>;
   };
   broll: {
     // The product's b-roll, newest first.

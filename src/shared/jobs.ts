@@ -2,7 +2,7 @@
 // Types, constants and zod schemas only: no Node or DOM imports.
 import { z } from "zod";
 
-// Only types that have a runner. `render` is typed and limited now; its runner lands in 3.5.
+// Both types have a runner (importClip: jobs/importClip.ts, render: render/exportVideo.ts).
 export const JOB_TYPES = ["importClip", "render"] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
@@ -28,9 +28,31 @@ export function isTerminalJobState(state: JobState): boolean {
   return state === "done" || state === "failed" || state === "cancelled";
 }
 
+// What a finished render job hands back. `warnings` are the soft verify checks that failed
+// (DECISIONS #38): the file was exported anyway.
+export type ExportJobResult = {
+  videoId: string;
+  // Relative to the library root, forward slashes.
+  exportPath: string;
+  warnings: string[];
+};
+
 // What a finished job hands back. importClip: the new media row, so a caller can bind a
-// dropped clip to its slot.
-export type JobResult = { mediaId: string };
+// dropped clip to its slot. render: the exported video.
+export type JobResult = { mediaId: string } | ExportJobResult;
+
+// The media row an importClip job created, or undefined for any other result.
+export function importedMediaId(
+  result: JobResult | undefined,
+): string | undefined {
+  return result && "mediaId" in result ? result.mediaId : undefined;
+}
+
+export function isExportJobResult(
+  result: JobResult | undefined,
+): result is ExportJobResult {
+  return result !== undefined && "videoId" in result;
+}
 
 export type JobInfo = {
   id: string;

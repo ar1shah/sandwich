@@ -90,9 +90,10 @@ export function createVideosRepo(db: Db, deps: RepoDeps) {
       return require(id);
     },
     get,
-    // One statement: insert the draft, or update it when the id exists AND it is still a
-    // draft. Keeps created_at and product_id on update. null = the id belongs to a video
-    // that is not a draft, which is never overwritten.
+    // One statement: insert the draft, or update it when the id exists AND it is a draft or
+    // a failed export (a save revives a failed row to a draft, DECISIONS #38). Keeps
+    // created_at and product_id on update. null = the id belongs to an exported video, which
+    // is never overwritten.
     upsertDraft(input: DraftUpsert): Video | null {
       const now = deps.now();
       const changes = db
@@ -102,8 +103,9 @@ export function createVideosRepo(db: Db, deps: RepoDeps) {
            VALUES (?, ?, 'draft', ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              recipe_json = excluded.recipe_json,
+             status = 'draft',
              updated_at = excluded.updated_at
-           WHERE videos.status = 'draft'`,
+           WHERE videos.status IN ('draft', 'failed')`,
         )
         .run(input.id, input.productId, input.recipeJson, now, now).changes;
       return changes > 0 ? require(input.id) : null;

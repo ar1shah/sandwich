@@ -163,6 +163,7 @@ beforeEach(() => {
     persisted: false,
     epoch: 0,
     switching: false,
+    exportState: { kind: "idle" },
   });
   useJobsStore.setState({ jobs: {} });
   useProductsStore.setState({

@@ -21,6 +21,7 @@ import { LIBRARY_DB_FILE, LIBRARY_DIRS } from "../src/shared/library";
 import { buildMigrationList } from "../src/shared/migrations";
 import {
   hasImportExtension,
+  importedMediaId,
   isTerminalJobState,
   type JobEvent,
 } from "../src/shared/jobs";
@@ -190,7 +191,9 @@ async function main(): Promise<void> {
   );
   check(
     done.every(
-      (e) => e.job.result && rows.some((m) => m.id === e.job.result?.mediaId),
+      (e) =>
+        e.job.result &&
+        rows.some((m) => m.id === importedMediaId(e.job.result)),
     ),
     "done events carry a mediaId that exists",
   );
