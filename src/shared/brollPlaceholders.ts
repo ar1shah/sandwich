@@ -1,5 +1,5 @@
 // Which import jobs show as placeholder tiles on a product's b-roll page. Pure.
-import type { JobInfo } from "./jobs";
+import { importedMediaId, type JobInfo } from "./jobs";
 
 export type BrollPlaceholder = {
   jobId: string;
@@ -69,7 +69,8 @@ export function brollPlaceholders(
                 },
               ];
         case "done":
-          return job.result && !loadedIds.has(job.result.mediaId)
+          return importedMediaId(job.result) !== undefined &&
+            !loadedIds.has(importedMediaId(job.result) ?? "")
             ? [
                 {
                   jobId: job.id,

@@ -66,7 +66,9 @@ Legend: `[ ]` todo · `[x]` done · `[~]` in progress · `[!]` blocked (add a no
 - [x] 3.4 Clip controls (zoom, mute, caption pick/edit/style/save to bank)
   - [x] You: caption with `{product}` resolves to the short name
   - [x] You: captions look good in both styles on real footage (bright and dark backgrounds)
-- [ ] 3.5 Export (naming, verify, sidecar, Show in Finder)
+- [x] 3.5 Export (naming, verify, sidecar, Show in Finder)
+  - [ ] You: export 2 videos with the same hook on the same day, the second gets `_02`
+  - [ ] You: the `.recipe.json` sidecar sits next to the mp4
 - [ ] 3.6 History + hardening + packaged run-through + USER_GUIDE.md
 - [ ] **Phase 3 exit test** (3 real videos posted as TikTok drafts, under 3 min each)
 - [ ] MVP sent to partner, one week of real use, notes in `docs/FEEDBACK.md`

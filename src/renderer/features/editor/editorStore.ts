@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { parseDraftRecipe, withProductSlug } from "../../../shared/drafts";
 import { debounce } from "../../../shared/debounce";
+import { exportBlocker } from "../../../shared/exportBlocker";
 import {
   applyCaptionLook,
   applyCaptionPick,
@@ -17,6 +18,8 @@ import {
 } from "../../../shared/editorRecipe";
 import {
   hasImportExtension,
+  importedMediaId,
+  isExportJobResult,
   isTerminalJobState,
   type JobInfo,
 } from "../../../shared/jobs";
@@ -35,6 +38,28 @@ import { useProductsStore } from "../products/productsStore";
 import { useSettingsStore } from "../settings/settingsStore";
 
 export type PendingImport = { jobId: string; name: string };
+
+// Where an export stands. `starting` is the moment between the click and the job id: the
+// draft is already locked then, like while `running`.
+export type ExportState =
+  | { kind: "idle" }
+  | { kind: "starting" }
+  | { kind: "running"; jobId: string }
+  | {
+      kind: "done";
+      videoId: string;
+      exportPath: string;
+      fileName: string;
+      warnings: string[];
+    }
+  | { kind: "failed"; message: string };
+
+export const EXPORT_BUSY_MESSAGE =
+  "An export is running. Wait for it to finish or cancel it first.";
+
+export function isExportBusy(state: ExportState): boolean {
+  return state.kind === "starting" || state.kind === "running";
+}
 type PerSlot<T> = Partial<Record<Slot, T>>;
 type OpenResult = { ok: true } | { ok: false; message: string };
 
@@ -65,10 +90,21 @@ export type EditorStore = {
   epoch: number;
   // True between beforeLibrarySwitch and its outcome: no saves, no imports.
   switching: boolean;
+  exportState: ExportState;
 
   startDraft: (product: ProductSummary) => Promise<void>;
   openDraft: (id: string) => Promise<OpenResult>;
   closeDraft: () => Promise<void>;
+  // Saves the draft and queues the render. Does nothing while the Export button is off.
+  exportVideo: () => Promise<void>;
+  // Stops a running export. The draft stays as it was.
+  cancelExport: () => void;
+  // Leaves the failed or cancelled export panel and goes back to editing.
+  dismissExport: () => void;
+  // Leaves the done panel: closes the exported draft WITHOUT saving it (it is a video now).
+  finishExport: () => Promise<void>;
+  // finishExport, then a fresh draft for the same product.
+  newVideoSameProduct: () => Promise<void>;
   // Opens the draft that was open when the app last closed. true = restored.
   hydrate: () => Promise<boolean>;
   selectSlot: (slot: Slot | null) => void;
@@ -112,6 +148,7 @@ const EMPTY = {
   notice: null,
   saveError: null,
   persisted: false,
+  exportState: { kind: "idle" },
 } as const;
 
 function messageOf(error: unknown): string {
@@ -206,9 +243,18 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     return saveChain;
   }
 
+  // The draft is frozen from the click on Export until the export panel is left: the render
+  // reads what was saved, and a finished export turns the row into a video.
+  function editsLocked(): boolean {
+    return get().exportState.kind !== "idle";
+  }
+
   // Applies a recipe change and saves it at once: the first clip creates the draft row,
   // later changes (including emptying a slot) keep updating it.
   function commit(next: Recipe): void {
+    if (editsLocked()) {
+      return;
+    }
     // This save carries the latest draft, trim edits included.
     editSave.cancel();
     editDirty = false;
@@ -252,12 +298,51 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     );
   }
 
+  // The running export's job reached a terminal state.
+  function applyExportJob(job: JobInfo): void {
+    if (job.state === "cancelled") {
+      set({ exportState: { kind: "idle" } });
+      return;
+    }
+    if (job.state === "failed") {
+      set({
+        exportState: {
+          kind: "failed",
+          message: job.error ?? "The export failed.",
+        },
+      });
+      return;
+    }
+    if (job.state === "done" && isExportJobResult(job.result)) {
+      const { videoId, exportPath, warnings } = job.result;
+      set({
+        exportState: {
+          kind: "done",
+          videoId,
+          exportPath,
+          fileName: exportPath.split("/").pop() ?? exportPath,
+          warnings,
+        },
+      });
+      // The row is a video now; a restart must not try to reopen it as a draft.
+      void window.api.settings.setOpenDraft(null).catch(() => undefined);
+      return;
+    }
+    set({
+      exportState: { kind: "failed", message: "The export did not finish." },
+    });
+  }
+
   return {
     ...EMPTY,
     epoch: 0,
     switching: false,
 
     async startDraft(product) {
+      if (isExportBusy(get().exportState)) {
+        set({ notice: EXPORT_BUSY_MESSAGE });
+        return;
+      }
       if (get().draft) {
         await get().closeDraft();
       }
@@ -280,13 +365,17 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     },
 
     async openDraft(id) {
+      if (isExportBusy(get().exportState)) {
+        return { ok: false, message: EXPORT_BUSY_MESSAGE };
+      }
       if (get().draft?.id === id) {
         return { ok: true };
       }
       const epoch = get().epoch;
       try {
         const video = await window.api.videos.get(id);
-        if (!video || video.status !== "draft") {
+        // A failed export opens like a draft; the next save makes it one again.
+        if (!video || video.status === "exported") {
           return { ok: false, message: "That draft no longer exists." };
         }
         const parsed = parseDraftRecipe(video.recipeJson);
@@ -346,6 +435,16 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     },
 
     async closeDraft() {
+      const exporting = get().exportState;
+      if (isExportBusy(exporting)) {
+        set({ notice: EXPORT_BUSY_MESSAGE });
+        return;
+      }
+      if (exporting.kind === "done") {
+        // The draft became a video: saving it would only fail.
+        await get().finishExport();
+        return;
+      }
       cancelAllPending();
       // The save below carries any trim change.
       editSave.cancel();
@@ -380,13 +479,95 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       }
     },
 
+    async exportVideo() {
+      const { draft, product, pending, missing } = get();
+      if (!draft || !product || get().switching) {
+        return;
+      }
+      if (get().exportState.kind !== "idle") {
+        return;
+      }
+      const blocker = exportBlocker({
+        draft,
+        pendingSlots: SLOTS.filter((slot) => pending[slot]),
+        missingSlots: SLOTS.filter((slot) => missing[slot]),
+      });
+      if (blocker) {
+        set({ notice: blocker });
+        return;
+      }
+      // Locks the editor before anything is awaited.
+      set({ exportState: { kind: "starting" }, notice: null });
+      const epoch = get().epoch;
+      try {
+        await get().flush();
+        const latest = get().draft;
+        if (get().epoch !== epoch || !latest) {
+          return;
+        }
+        const result = await window.api.videos.export(latest);
+        if (get().epoch !== epoch) {
+          return;
+        }
+        if (!result.ok) {
+          set({ exportState: { kind: "failed", message: result.message } });
+          return;
+        }
+        const { jobId } = result.value;
+        set({ exportState: { kind: "running", jobId }, persisted: true });
+        // The job may have finished before we knew its id.
+        const job = useJobsStore.getState().jobs[jobId];
+        if (job && isTerminalJobState(job.state)) {
+          applyExportJob(job);
+        }
+      } catch (error) {
+        if (get().epoch === epoch) {
+          set({ exportState: { kind: "failed", message: messageOf(error) } });
+        }
+      }
+    },
+
+    cancelExport() {
+      const exporting = get().exportState;
+      if (exporting.kind === "running") {
+        cancelJob(exporting.jobId);
+      }
+    },
+
+    dismissExport() {
+      const exporting = get().exportState;
+      if (exporting.kind === "failed") {
+        set({ exportState: { kind: "idle" } });
+      }
+    },
+
+    async finishExport() {
+      const exporting = get().exportState;
+      if (exporting.kind !== "done") {
+        return;
+      }
+      editSave.cancel();
+      editDirty = false;
+      await saveChain;
+      await window.api.settings.setOpenDraft(null).catch(() => undefined);
+      set({ ...EMPTY });
+    },
+
+    async newVideoSameProduct() {
+      const product = get().product;
+      await get().finishExport();
+      if (product && get().exportState.kind === "idle" && !get().draft) {
+        await get().startDraft(product);
+      }
+    },
+
     selectSlot(slot) {
       set({ selectedSlot: slot });
     },
 
     async importToSlot(slot, files) {
       const draft = get().draft;
-      if (!draft || get().switching || files.length === 0) {
+      if (!draft || get().switching || editsLocked() || files.length === 0) {
         return;
       }
       set({
@@ -431,6 +612,11 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       if (!isTerminalJobState(job.state) || handling.has(job.id)) {
         return;
       }
+      const exporting = get().exportState;
+      if (exporting.kind === "running" && exporting.jobId === job.id) {
+        applyExportJob(job);
+        return;
+      }
       const slot = slotOfJob(job.id);
       const draftId = get().draft?.id;
       if (!slot || !draftId) {
@@ -448,7 +634,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       handling.add(job.id);
       const epoch = get().epoch;
       try {
-        const mediaId = job.result?.mediaId;
+        const mediaId = importedMediaId(job.result);
         const media = mediaId ? await window.api.media.get(mediaId) : null;
         const stale =
           get().epoch !== epoch ||
@@ -485,6 +671,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       if (
         !draft ||
         !clip ||
+        editsLocked() ||
         clip.mediaPath === "" ||
         !(clip.sourceDuration > 0)
       ) {
@@ -538,7 +725,13 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     setCaptionText(slot, text) {
       const draft = get().draft;
       const clip = draft?.clips[SLOTS.indexOf(slot)];
-      if (!draft || !clip || get().switching || clip.caption?.text === text) {
+      if (
+        !draft ||
+        !clip ||
+        get().switching ||
+        editsLocked() ||
+        clip.caption?.text === text
+      ) {
         return;
       }
       set({ draft: applyCaptionText(draft, slot, text, new Date()) });
@@ -575,7 +768,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
 
     clearSlot(slot) {
       const draft = get().draft;
-      if (!draft) {
+      if (!draft || editsLocked()) {
         return;
       }
       const previous = get().pending[slot];

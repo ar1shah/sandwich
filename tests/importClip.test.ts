@@ -11,7 +11,7 @@ import { importClip, type ImportSteps } from "../src/main/jobs/importClip";
 import { createJobService } from "../src/main/jobs";
 import { sweepLibrary } from "../src/main/library/sweepLibrary";
 import { ensureLayout } from "../src/main/library/openLibrary";
-import type { JobEvent } from "../src/shared/jobs";
+import { importedMediaId, type JobEvent } from "../src/shared/jobs";
 import { fakeSteps } from "./helpers/fakeImportSteps";
 import { makeTempDir, makeTempLibraryDb } from "./helpers/db";
 
@@ -205,7 +205,7 @@ describe("job service", () => {
     expect(peak).toBe(2);
     const done = events.filter((e) => e.type === "done");
     expect(done).toHaveLength(5);
-    expect(done.map((e) => e.job.result?.mediaId).sort()).toEqual([
+    expect(done.map((e) => importedMediaId(e.job.result)).sort()).toEqual([
       "clip-1",
       "clip-2",
       "clip-3",

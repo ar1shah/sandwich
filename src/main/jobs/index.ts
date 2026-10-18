@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { fileBaseName, type JobEvent, type JobInfo } from "../../shared/jobs";
+import {
+  fileBaseName,
+  isTerminalJobState,
+  type JobEvent,
+  type JobInfo,
+} from "../../shared/jobs";
 import { createJobScheduler } from "../../shared/jobScheduler";
+import type { Recipe } from "../../shared/recipe";
 import type { Repos } from "../db/repos";
+import {
+  ExportRejectedError,
+  exportVideo,
+  type ExportDeps,
+} from "../render/exportVideo";
 import {
   createFfmpegSteps,
   importClip,
@@ -26,6 +37,9 @@ export type JobServiceDeps = {
   onEvent: (event: JobEvent) => void;
   // Defaults to the ffmpeg-backed steps with the dev binaries; the app passes its own.
   steps?: ImportSteps;
+  // The render and verify steps of an export (the app wires renderRecipe and verifyRender).
+  // Without them exportVideo() throws.
+  exporter?: Pick<ExportDeps, "render" | "verify">;
   now?: () => Date;
   newId?: () => string;
 };
@@ -34,8 +48,7 @@ export type JobServiceDeps = {
 // scripts/test-import.ts runs the same code headless.
 export function createJobService(deps: JobServiceDeps) {
   const scheduler = createJobScheduler({
-    // render joins in 3.5.
-    enabledTypes: ["importClip"],
+    enabledTypes: ["importClip", "render"],
     onEvent: deps.onEvent,
     newId: () => randomUUID(),
   });
@@ -87,7 +100,60 @@ export function createJobService(deps: JobServiceDeps) {
     );
   }
 
+  // videoId -> the render job that exports it. Entries are never removed: a stale one is
+  // simply a job in a terminal state (or one that no longer exists), see activeExportJobId.
+  const exportJobs = new Map<string, string>();
+
+  function activeExportJobId(videoId: string): string | null {
+    const jobId = exportJobs.get(videoId);
+    if (!jobId) {
+      return null;
+    }
+    const job = scheduler.snapshot().find((entry) => entry.id === jobId);
+    return job && !isTerminalJobState(job.state) ? jobId : null;
+  }
+
+  // Queues one render job for a draft that is already saved. Returns the job id.
+  function enqueueExport(recipe: Recipe): string {
+    const library = deps.getLibrary();
+    if (!library) {
+      throw new Error("Open a library before exporting.");
+    }
+    if (!deps.exporter) {
+      throw new Error("Exporting is not set up.");
+    }
+    if (activeExportJobId(recipe.id)) {
+      throw new ExportRejectedError(
+        "already-exporting",
+        "This video is already exporting.",
+      );
+    }
+    const { root, repos } = library;
+    const product = repos.products.get(recipe.productId);
+    if (!product) {
+      throw new ExportRejectedError(
+        "not-found",
+        "That product no longer exists.",
+      );
+    }
+    const { render, verify } = deps.exporter;
+    const jobId = scheduler.enqueue({
+      type: "render",
+      label: `Exporting ${product.shortName ?? product.fullName}`,
+      productId: product.id,
+      run: (context) =>
+        exportVideo(recipe, context, { root, repos, render, verify, now }),
+    });
+    exportJobs.set(recipe.id, jobId);
+    return jobId;
+  }
+
   return {
+    // Queues one render job for the draft `recipe` (already saved). Throws
+    // ExportRejectedError when the product is gone or this video is already exporting.
+    exportVideo: enqueueExport,
+    // The queued or running export job of this video, or null.
+    activeExportJobId,
     // Queues one importClip job per file. Returns the job ids.
     importUgc: (filePaths: readonly string[]): string[] =>
       enqueueImports({ kind: "ugc" }, filePaths),

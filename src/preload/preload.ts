@@ -18,7 +18,7 @@ import type { ProductResult, ProductSummary } from "../shared/products";
 import type { MediaPathCheck } from "../shared/mediaLookup";
 import type { Recipe } from "../shared/recipe";
 import type { EditorSettings } from "../shared/settings";
-import type { SavedDraft, VideoResult } from "../shared/videos";
+import type { ExportStarted, SavedDraft, VideoResult } from "../shared/videos";
 import {
   APP_VERSION_CHANNEL,
   BROLL_IMPORT_CHANNEL,
@@ -42,7 +42,9 @@ import {
   SETTINGS_UPDATE_CHANNEL,
   VIDEOS_GET_CHANNEL,
   VIDEOS_LIST_CHANNEL,
+  VIDEOS_EXPORT_CHANNEL,
   VIDEOS_REMOVE_CHANNEL,
+  VIDEOS_REVEAL_CHANNEL,
   VIDEOS_SAVE_DRAFT_CHANNEL,
   PRODUCTS_ARCHIVE_CHANNEL,
   PRODUCTS_CREATE_CHANNEL,
@@ -58,6 +60,7 @@ import {
 } from "../shared/ipc";
 
 const api: SandwichApi = {
+  platform: process.platform,
   app: {
     version: () => ipcRenderer.invoke(APP_VERSION_CHANNEL) as Promise<string>,
   },
@@ -133,6 +136,14 @@ const api: SandwichApi = {
       ipcRenderer.invoke(VIDEOS_GET_CHANNEL, id) as Promise<Video | null>,
     remove: (id) =>
       ipcRenderer.invoke(VIDEOS_REMOVE_CHANNEL, id) as Promise<
+        VideoResult<true>
+      >,
+    export: (recipe: Recipe) =>
+      ipcRenderer.invoke(VIDEOS_EXPORT_CHANNEL, recipe) as Promise<
+        VideoResult<ExportStarted>
+      >,
+    reveal: (id) =>
+      ipcRenderer.invoke(VIDEOS_REVEAL_CHANNEL, id) as Promise<
         VideoResult<true>
       >,
   },
