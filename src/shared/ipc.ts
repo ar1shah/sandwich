@@ -17,6 +17,7 @@ import type {
   UpdateCaptionInput,
 } from "./captions";
 import type { JobEvent, JobInfo } from "./jobs";
+import type { RendererLogEntry } from "./logRotate";
 import type { MediaPathCheck } from "./mediaLookup";
 import type { EditorSettings, UpdateEditorSettings } from "./settings";
 import type { Recipe } from "./recipe";
@@ -35,6 +36,8 @@ import type {
 } from "./products";
 
 export const APP_VERSION_CHANNEL = "app:version";
+export const APP_OPEN_LOGS_CHANNEL = "app:openLogsFolder";
+export const LOG_WRITE_CHANNEL = "log:write";
 export const LIBRARY_MEDIA_BASE_URL_CHANNEL = "library:mediaBaseUrl";
 export const LIBRARY_GET_CHANNEL = "library:get";
 export const LIBRARY_CHOOSE_CHANNEL = "library:choose";
@@ -80,6 +83,14 @@ export type SandwichApi = {
   platform: string;
   app: {
     version: () => Promise<string>;
+    // Opens the folder that holds the log files. { ok: false } carries a readable reason.
+    openLogsFolder: () => Promise<
+      { ok: true } | { ok: false; message: string }
+    >;
+  };
+  log: {
+    // Adds an entry to the log file (never throws). Main validates, caps and rate limits it.
+    write: (entry: RendererLogEntry) => Promise<void>;
   };
   library: {
     get: () => Promise<LibraryState>;

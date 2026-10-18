@@ -2,6 +2,7 @@ import { SYNC_PROVIDER_LABELS } from "../../../shared/syncedFolders";
 import { LibraryPicker } from "../library/LibraryPicker";
 import { useLibraryStore } from "../library/libraryStore";
 import { EditorSettingsSection } from "./EditorSettingsSection";
+import { TroubleshootingSection } from "./TroubleshootingSection";
 
 const SECONDARY_BUTTON =
   "rounded-md border border-edge px-4 py-2 text-sm transition-colors hover:bg-white/5";
@@ -50,6 +51,7 @@ export const SettingsPage: React.FC = () => {
           )}
         </div>
       </section>
+      <TroubleshootingSection />
     </>
   );
 };

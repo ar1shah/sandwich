@@ -26,7 +26,9 @@ import type {
   VideoResult,
 } from "../shared/videos";
 import {
+  APP_OPEN_LOGS_CHANNEL,
   APP_VERSION_CHANNEL,
+  LOG_WRITE_CHANNEL,
   BROLL_IMPORT_CHANNEL,
   BROLL_LIST_CHANNEL,
   BROLL_REMOVE_CHANNEL,
@@ -70,6 +72,14 @@ const api: SandwichApi = {
   platform: process.platform,
   app: {
     version: () => ipcRenderer.invoke(APP_VERSION_CHANNEL) as Promise<string>,
+    openLogsFolder: () =>
+      ipcRenderer.invoke(APP_OPEN_LOGS_CHANNEL) as Promise<
+        { ok: true } | { ok: false; message: string }
+      >,
+  },
+  log: {
+    write: (entry) =>
+      ipcRenderer.invoke(LOG_WRITE_CHANNEL, entry) as Promise<void>,
   },
   library: {
     get: () => ipcRenderer.invoke(LIBRARY_GET_CHANNEL) as Promise<LibraryState>,
