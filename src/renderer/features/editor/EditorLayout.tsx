@@ -1,3 +1,4 @@
+import { Thumb } from "../../components/Thumb";
 import { useState } from "react";
 import { exportBlocker } from "../../../shared/exportBlocker";
 import { SLOTS } from "../../../shared/recipe";
@@ -39,13 +40,11 @@ export const EditorLayout: React.FC = () => {
   return (
     <div className="mt-6 flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-3">
-        {image && (
-          <img
-            src={image}
-            alt=""
-            className="h-10 w-10 rounded-md object-cover"
-          />
-        )}
+        <Thumb
+          src={image}
+          className="h-10 w-10 rounded-md object-cover"
+          fallback={null}
+        />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{product.fullName}</p>
           <p className="text-xs text-app-muted">Draft saves automatically.</p>

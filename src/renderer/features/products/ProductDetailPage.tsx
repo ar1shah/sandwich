@@ -1,3 +1,5 @@
+import { LoadError } from "../../components/LoadError";
+import { Thumb } from "../../components/Thumb";
 import { useEffect, useState } from "react";
 import { BrollPicker } from "../broll/BrollPicker";
 import { BrollSection } from "../broll/BrollSection";
@@ -15,6 +17,7 @@ export const ProductDetailPage: React.FC<{ productId: string }> = ({
 }) => {
   const products = useProductsStore((s) => s.products);
   const loaded = useProductsStore((s) => s.loaded);
+  const loadError = useProductsStore((s) => s.loadError);
   const mediaBase = useProductsStore((s) => s.mediaBase);
   const load = useProductsStore((s) => s.load);
   const closeProduct = useNavStore((s) => s.closeProduct);
@@ -42,7 +45,17 @@ export const ProductDetailPage: React.FC<{ productId: string }> = ({
   }, [loaded, product, archived, closeProduct]);
 
   if (!product || archived) {
-    return null;
+    if (loaded) {
+      return null;
+    }
+    return loadError ? (
+      <LoadError
+        message={`Could not load products: ${loadError}`}
+        onRetry={() => void load()}
+      />
+    ) : (
+      <p className="mt-6 text-sm text-app-muted">Loading...</p>
+    );
   }
 
   const imageUrl = productImageUrl(mediaBase, product);
@@ -59,22 +72,20 @@ export const ProductDetailPage: React.FC<{ productId: string }> = ({
 
       <header className="flex items-center gap-5">
         <div className="size-24 shrink-0 overflow-hidden rounded-xl border border-edge bg-black/30">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt=""
-              draggable={false}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div
-              aria-hidden="true"
-              className="flex h-full w-full items-center justify-center text-2xl font-semibold text-white/70"
-              style={{ background: tint(product.fullName) }}
-            >
-              {initials(product.fullName)}
-            </div>
-          )}
+          <Thumb
+            src={imageUrl}
+            draggable={false}
+            className="h-full w-full object-cover"
+            fallback={
+              <div
+                aria-hidden="true"
+                className="flex h-full w-full items-center justify-center text-2xl font-semibold text-white/70"
+                style={{ background: tint(product.fullName) }}
+              >
+                {initials(product.fullName)}
+              </div>
+            }
+          />
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">

@@ -6,7 +6,9 @@ export const BrollPlaceholderTile: React.FC<{
   placeholder: BrollPlaceholder;
   onCancel: (jobId: string) => void;
   onDismiss: (jobId: string) => void;
-}> = ({ placeholder, onCancel, onDismiss }) => {
+  // Imports the same file again. Omitted when the file is not known.
+  onRetry?: (jobId: string) => void;
+}> = ({ placeholder, onCancel, onDismiss, onRetry }) => {
   const fileName = placeholder.label.replace(/^Importing /, "");
 
   if (placeholder.kind === "error") {
@@ -24,13 +26,24 @@ export const BrollPlaceholderTile: React.FC<{
             {placeholder.message}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onDismiss(placeholder.jobId)}
-          className="self-start rounded-md border border-edge px-2 py-1 text-xs hover:bg-white/5"
-        >
-          Dismiss
-        </button>
+        <div className="flex gap-2">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={() => onRetry(placeholder.jobId)}
+              className="rounded-md border border-edge px-2 py-1 text-xs hover:bg-white/5"
+            >
+              Try again
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDismiss(placeholder.jobId)}
+            className="rounded-md border border-edge px-2 py-1 text-xs hover:bg-white/5"
+          >
+            Dismiss
+          </button>
+        </div>
       </li>
     );
   }

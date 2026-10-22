@@ -1,3 +1,4 @@
+import { Thumb } from "../../components/Thumb";
 import { useRef, useState } from "react";
 import { formatDuration } from "../../../shared/formatDuration";
 import { slotStatus } from "../../../shared/editorRecipe";
@@ -39,6 +40,8 @@ export const SlotCard: React.FC<{
   const pending = useEditorStore((s) => s.pending[slot]);
   const missing = useEditorStore((s) => s.missing[slot] === true);
   const error = useEditorStore((s) => s.slotError[slot]);
+  const canRetry = useEditorStore((s) => s.retryPaths[slot] !== undefined);
+  const retryImport = useEditorStore((s) => s.retryImport);
   const selectSlot = useEditorStore((s) => s.selectSlot);
   const importToSlot = useEditorStore((s) => s.importToSlot);
   const clearSlot = useEditorStore((s) => s.clearSlot);
@@ -104,13 +107,15 @@ export const SlotCard: React.FC<{
       }
     >
       <div className="relative aspect-[9/16] w-16 shrink-0 overflow-hidden rounded-md bg-app">
-        {thumb && !missing ? (
-          <img src={thumb} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="absolute inset-0 grid place-items-center text-xs text-app-dim">
-            {slot === "broll" ? "B-roll" : label}
-          </span>
-        )}
+        <Thumb
+          src={missing ? null : thumb}
+          className="h-full w-full object-cover"
+          fallback={
+            <span className="absolute inset-0 grid place-items-center text-xs text-app-dim">
+              {slot === "broll" ? "B-roll" : label}
+            </span>
+          }
+        />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -213,6 +218,18 @@ export const SlotCard: React.FC<{
               }}
             >
               {clip.mediaPath === "" ? "Choose b-roll" : "Change"}
+            </button>
+          )}
+          {isUgc && canRetry && (
+            <button
+              type="button"
+              className={SECONDARY}
+              onClick={(event) => {
+                event.stopPropagation();
+                void retryImport(slot);
+              }}
+            >
+              Try again
             </button>
           )}
           {clip.mediaPath !== "" && (

@@ -158,6 +158,7 @@ beforeEach(() => {
     pending: {},
     missing: {},
     slotError: {},
+    retryPaths: {},
     notice: null,
     saveError: null,
     persisted: false,
@@ -332,6 +333,100 @@ describe("slot import", () => {
     await editor().handleJob(doneJob("job-1", "ghost"));
     expect(editor().slotError.before).toMatch(/could not be found/);
     expect(editor().draft!.clips[0].mediaPath).toBe("");
+  });
+});
+
+describe("try again after a failed import", () => {
+  it("re-imports the same file and clears the error", async () => {
+    ctx.state.importHook = (jobId) =>
+      useJobsStore.getState().applyEvent({
+        type: "failed",
+        job: job(jobId, "failed", { error: "Could not read the video." }),
+      });
+    await editor().startDraft(PRODUCT);
+    await editor().importToSlot("before", [file("/x/flaky.mov")]);
+    expect(editor().retryPaths.before).toBe("/x/flaky.mov");
+
+    ctx.state.importHook = null;
+    ctx.state.media.set("m1", media("m1", 8));
+    await editor().retryImport("before");
+    expect(ctx.api.media.importUgc).toHaveBeenLastCalledWith(["/x/flaky.mov"]);
+    expect(editor().slotError).toEqual({});
+    expect(editor().retryPaths).toEqual({});
+    await editor().handleJob(doneJob("job-2", "m1"));
+    expect(editor().draft!.clips[0].mediaPath).toBe("clips/2026-10/m1.mp4");
+  });
+
+  it("keeps the file for another try when the retry fails too", async () => {
+    ctx.state.importHook = (jobId) =>
+      useJobsStore.getState().applyEvent({
+        type: "failed",
+        job: job(jobId, "failed", { error: "No such file" }),
+      });
+    await editor().startDraft(PRODUCT);
+    await editor().importToSlot("before", [file("/x/gone.mov")]);
+    await editor().retryImport("before");
+    expect(ctx.api.media.importUgc).toHaveBeenCalledTimes(2);
+    expect(editor().slotError.before).toBe("No such file");
+    expect(editor().retryPaths.before).toBe("/x/gone.mov");
+  });
+
+  it("does nothing when no import has failed", async () => {
+    await editor().startDraft(PRODUCT);
+    await editor().retryImport("before");
+    expect(ctx.api.media.importUgc).not.toHaveBeenCalled();
+  });
+
+  it("forgets the file once the slot gets a clip another way", async () => {
+    ctx.state.importHook = (jobId) =>
+      useJobsStore.getState().applyEvent({
+        type: "failed",
+        job: job(jobId, "failed", { error: "boom" }),
+      });
+    await editor().startDraft(PRODUCT);
+    await editor().importToSlot("before", [file("/x/a.mov")]);
+    expect(editor().retryPaths.before).toBeDefined();
+    editor().clearSlot("before");
+    expect(editor().retryPaths).toEqual({});
+  });
+});
+
+describe("recheckMissing", () => {
+  it("flags a slot whose file disappeared since the draft was opened, and clears it again", async () => {
+    await startWithClip();
+    expect(editor().missing).toEqual({});
+    ctx.state.byPaths = [
+      {
+        path: "clips/2026-10/m1.mp4",
+        media: media("m1", 12),
+        fileExists: false,
+      },
+    ];
+    await editor().recheckMissing();
+    expect(editor().missing.before).toBe(true);
+    ctx.state.byPaths = [
+      {
+        path: "clips/2026-10/m1.mp4",
+        media: media("m1", 12),
+        fileExists: true,
+      },
+    ];
+    await editor().recheckMissing();
+    expect(editor().missing).toEqual({});
+  });
+
+  it("does not ask without a draft or without clips", async () => {
+    await editor().recheckMissing();
+    await editor().startDraft(PRODUCT);
+    await editor().recheckMissing();
+    expect(ctx.api.media.byPaths).not.toHaveBeenCalled();
+  });
+
+  it("keeps quiet when main cannot answer", async () => {
+    await startWithClip();
+    ctx.api.media.byPaths.mockRejectedValueOnce(new Error("no library"));
+    await expect(editor().recheckMissing()).resolves.toBeUndefined();
+    expect(editor().missing).toEqual({});
   });
 });
 
@@ -784,5 +879,20 @@ describe("clip controls and captions", () => {
     editor().setCaptionText("before", "late");
     expect(editor().draft!.clips[0].zoom).toBe("none");
     expect(editor().draft!.clips[0].caption).toBeNull();
+  });
+});
+
+describe("openDraft on the draft that is already open", () => {
+  it("rechecks its clips instead of trusting what it knew", async () => {
+    await startWithClip();
+    ctx.state.byPaths = [
+      {
+        path: "clips/2026-10/m1.mp4",
+        media: media("m1", 12),
+        fileExists: false,
+      },
+    ];
+    expect(await editor().openDraft(editor().draft!.id)).toEqual({ ok: true });
+    expect(editor().missing.before).toBe(true);
   });
 });

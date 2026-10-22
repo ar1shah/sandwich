@@ -49,6 +49,10 @@ function prune(jobs: Record<string, JobInfo>): Record<string, JobInfo> {
 
 type JobsStore = {
   jobs: Record<string, JobInfo>;
+  // Finished jobs the user cleared from the tray. The jobs stay in `jobs`: screens such as the
+  // b-roll page still show their failed imports.
+  dismissed: Record<string, true>;
+  dismiss: (jobId: string) => void;
   applyEvent: (event: JobEvent) => void;
   applySnapshot: (snapshot: JobInfo[]) => void;
   // Subscribes first, then loads the snapshot, so nothing is missed in between.
@@ -60,6 +64,11 @@ type JobsStore = {
 
 export const useJobsStore = create<JobsStore>((set, get) => ({
   jobs: {},
+  dismissed: {},
+
+  dismiss(jobId) {
+    set((state) => ({ dismissed: { ...state.dismissed, [jobId]: true } }));
+  },
 
   applyEvent(event) {
     set((state) => ({ jobs: prune(mergeJob(state.jobs, event.job)) }));
@@ -96,9 +105,15 @@ export function selectActive(jobs: Record<string, JobInfo>): JobInfo[] {
     .sort((a, b) => a.order - b.order);
 }
 
-// Done and failed, newest first. Cancelled jobs are not shown.
-export function selectFinished(jobs: Record<string, JobInfo>): JobInfo[] {
+// Done and failed, newest first. Cancelled jobs are not shown, nor are dismissed ones.
+export function selectFinished(
+  jobs: Record<string, JobInfo>,
+  dismissed: Record<string, true> = {},
+): JobInfo[] {
   return Object.values(jobs)
-    .filter((job) => job.state === "done" || job.state === "failed")
+    .filter(
+      (job) =>
+        (job.state === "done" || job.state === "failed") && !dismissed[job.id],
+    )
     .sort((a, b) => b.seq - a.seq);
 }

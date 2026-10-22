@@ -55,6 +55,11 @@ export const Filmstrip: React.FC<{
   const track = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const drag = useRef<Drag | null>(null);
+  // The sprite file is gone (deleted outside the app): say so instead of drawing broken images.
+  const [spriteFailed, setSpriteFailed] = useState(false);
+  useEffect(() => {
+    setSpriteFailed(false);
+  }, [spriteUrl]);
 
   useEffect(() => {
     const element = track.current;
@@ -209,25 +214,32 @@ export const Filmstrip: React.FC<{
           className="absolute inset-0 overflow-hidden rounded-md bg-black/40"
           aria-hidden="true"
         >
-          {cells?.tiles.map((tile) => (
-            <div
-              key={tile.left}
-              className="absolute top-0 h-full overflow-hidden"
-              style={{ left: tile.left, width: tile.width }}
-            >
-              <img
-                src={spriteUrl ?? undefined}
-                alt=""
-                draggable={false}
-                className="absolute top-0 max-w-none"
-                style={{
-                  left: tile.offsetX,
-                  width: cells.spriteWidth,
-                  height: cells.spriteHeight,
-                }}
-              />
-            </div>
-          ))}
+          {spriteFailed && (
+            <span className="absolute inset-0 grid place-items-center text-xs text-app-dim">
+              Preview strip missing
+            </span>
+          )}
+          {!spriteFailed &&
+            cells?.tiles.map((tile) => (
+              <div
+                key={tile.left}
+                className="absolute top-0 h-full overflow-hidden"
+                style={{ left: tile.left, width: tile.width }}
+              >
+                <img
+                  src={spriteUrl ?? undefined}
+                  alt=""
+                  draggable={false}
+                  className="absolute top-0 max-w-none"
+                  onError={() => setSpriteFailed(true)}
+                  style={{
+                    left: tile.offsetX,
+                    width: cells.spriteWidth,
+                    height: cells.spriteHeight,
+                  }}
+                />
+              </div>
+            ))}
           <div
             className="absolute inset-y-0 left-0 bg-black/60"
             style={{ width: left }}

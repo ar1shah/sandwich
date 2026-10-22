@@ -17,10 +17,17 @@ import type {
   UpdateCaptionInput,
 } from "./captions";
 import type { JobEvent, JobInfo } from "./jobs";
+import type { RendererLogEntry } from "./logRotate";
 import type { MediaPathCheck } from "./mediaLookup";
 import type { EditorSettings, UpdateEditorSettings } from "./settings";
 import type { Recipe } from "./recipe";
-import type { ExportStarted, SavedDraft, VideoResult } from "./videos";
+import type {
+  ExportFileState,
+  ExportStarted,
+  RemovedVideo,
+  SavedDraft,
+  VideoResult,
+} from "./videos";
 import type {
   CreateProductRequest,
   ProductResult,
@@ -29,6 +36,8 @@ import type {
 } from "./products";
 
 export const APP_VERSION_CHANNEL = "app:version";
+export const APP_OPEN_LOGS_CHANNEL = "app:openLogsFolder";
+export const LOG_WRITE_CHANNEL = "log:write";
 export const LIBRARY_MEDIA_BASE_URL_CHANNEL = "library:mediaBaseUrl";
 export const LIBRARY_GET_CHANNEL = "library:get";
 export const LIBRARY_CHOOSE_CHANNEL = "library:choose";
@@ -48,6 +57,7 @@ export const VIDEOS_GET_CHANNEL = "videos:get";
 export const VIDEOS_REMOVE_CHANNEL = "videos:remove";
 export const VIDEOS_EXPORT_CHANNEL = "videos:export";
 export const VIDEOS_REVEAL_CHANNEL = "videos:reveal";
+export const VIDEOS_EXPORT_FILES_CHANNEL = "videos:exportFiles";
 export const BROLL_LIST_CHANNEL = "broll:list";
 export const BROLL_IMPORT_CHANNEL = "broll:import";
 export const BROLL_REMOVE_CHANNEL = "broll:remove";
@@ -73,6 +83,14 @@ export type SandwichApi = {
   platform: string;
   app: {
     version: () => Promise<string>;
+    // Opens the folder that holds the log files. { ok: false } carries a readable reason.
+    openLogsFolder: () => Promise<
+      { ok: true } | { ok: false; message: string }
+    >;
+  };
+  log: {
+    // Adds an entry to the log file (never throws). Main validates, caps and rate limits it.
+    write: (entry: RendererLogEntry) => Promise<void>;
   };
   library: {
     get: () => Promise<LibraryState>;
@@ -129,8 +147,15 @@ export type SandwichApi = {
     // Newest-updated first. Rows carry the raw recipe JSON; use summarizeDraft/parseDraftRecipe.
     list: (options?: { status?: VideoStatus }) => Promise<Video[]>;
     get: (id: string) => Promise<Video | null>;
-    // Drafts (and failed exports) only.
-    remove: (id: string) => Promise<VideoResult<true>>;
+    // Deletes the record. Exported videos too: with deleteFile the mp4 and its sidecar go to
+    // the Trash first (the record stays if the mp4 cannot be trashed, so the user can retry).
+    remove: (
+      id: string,
+      options?: { deleteFile?: boolean },
+    ) => Promise<VideoResult<RemovedVideo>>;
+    // Whether each exported video's file is still on disk. One call for many ids; ids that
+    // are not exported rows are left out of the answer.
+    exportFiles: (ids: string[]) => Promise<Record<string, ExportFileState>>;
     // Saves the draft, then queues a render job. Progress and the result come on
     // jobs.onEvent (type "render"; result is an ExportJobResult). { ok: false } = invalid
     // recipe, a slot without a clip, already exporting, or the product is gone.

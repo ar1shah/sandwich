@@ -18,9 +18,17 @@ import type { ProductResult, ProductSummary } from "../shared/products";
 import type { MediaPathCheck } from "../shared/mediaLookup";
 import type { Recipe } from "../shared/recipe";
 import type { EditorSettings } from "../shared/settings";
-import type { ExportStarted, SavedDraft, VideoResult } from "../shared/videos";
+import type {
+  ExportFileState,
+  ExportStarted,
+  RemovedVideo,
+  SavedDraft,
+  VideoResult,
+} from "../shared/videos";
 import {
+  APP_OPEN_LOGS_CHANNEL,
   APP_VERSION_CHANNEL,
+  LOG_WRITE_CHANNEL,
   BROLL_IMPORT_CHANNEL,
   BROLL_LIST_CHANNEL,
   BROLL_REMOVE_CHANNEL,
@@ -43,6 +51,7 @@ import {
   VIDEOS_GET_CHANNEL,
   VIDEOS_LIST_CHANNEL,
   VIDEOS_EXPORT_CHANNEL,
+  VIDEOS_EXPORT_FILES_CHANNEL,
   VIDEOS_REMOVE_CHANNEL,
   VIDEOS_REVEAL_CHANNEL,
   VIDEOS_SAVE_DRAFT_CHANNEL,
@@ -63,6 +72,14 @@ const api: SandwichApi = {
   platform: process.platform,
   app: {
     version: () => ipcRenderer.invoke(APP_VERSION_CHANNEL) as Promise<string>,
+    openLogsFolder: () =>
+      ipcRenderer.invoke(APP_OPEN_LOGS_CHANNEL) as Promise<
+        { ok: true } | { ok: false; message: string }
+      >,
+  },
+  log: {
+    write: (entry) =>
+      ipcRenderer.invoke(LOG_WRITE_CHANNEL, entry) as Promise<void>,
   },
   library: {
     get: () => ipcRenderer.invoke(LIBRARY_GET_CHANNEL) as Promise<LibraryState>,
@@ -134,9 +151,14 @@ const api: SandwichApi = {
       ipcRenderer.invoke(VIDEOS_LIST_CHANNEL, options) as Promise<Video[]>,
     get: (id) =>
       ipcRenderer.invoke(VIDEOS_GET_CHANNEL, id) as Promise<Video | null>,
-    remove: (id) =>
-      ipcRenderer.invoke(VIDEOS_REMOVE_CHANNEL, id) as Promise<
-        VideoResult<true>
+    remove: (id, options) =>
+      ipcRenderer.invoke(VIDEOS_REMOVE_CHANNEL, {
+        id,
+        deleteFile: options?.deleteFile,
+      }) as Promise<VideoResult<RemovedVideo>>,
+    exportFiles: (ids) =>
+      ipcRenderer.invoke(VIDEOS_EXPORT_FILES_CHANNEL, ids) as Promise<
+        Record<string, ExportFileState>
       >,
     export: (recipe: Recipe) =>
       ipcRenderer.invoke(VIDEOS_EXPORT_CHANNEL, recipe) as Promise<

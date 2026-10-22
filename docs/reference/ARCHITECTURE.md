@@ -30,19 +30,21 @@ Think of the app as a restaurant:
 ### Main (`src/main/`)
 - `products/` : `productService.ts` owns product rows plus `products/<id>/image.jpg` (stage in `cache/tmp`, then rename; see DECISIONS #30). `ipc/products.ts` validates with zod and returns `{ ok, ... }` results for user-fixable failures.
 - `ipc/` : one file per domain (`products.ts`, `broll.ts`, `captions.ts`, `videos.ts`, `jobs.ts`, `library.ts`). Each handler validates input with zod, calls a service, returns plain JSON.
-- `videos/` : `videoService.ts` (draft upsert, list, get, remove; `ipc/videos.ts`). `settings/editorSettingsService.ts` (clip lengths, target range, per-library open-draft pointer; `ipc/settings.ts`). `media/mediaLookup.ts` (media row by id, row + file check by path).
+- `videos/` : `videoService.ts` (draft upsert, list, get, remove with optional Trash of the exported files, `exportFiles` presence check; `ipc/videos.ts`). `settings/editorSettingsService.ts` (clip lengths, target range, per-library open-draft pointer; `ipc/settings.ts`). `media/mediaLookup.ts` (media row by id, row + file check by path).
 - `library/` : settings.json in `userData` (libraryPath plus the editor fields, DECISIONS #33), folder inspection (sync-folder warning, existing library, schema too new), the library manager (two-phase choose/activate), headless `--db-check`.
 - `db/` : connection, migrations runner, repositories. Migrations are `db/migrations/NNN_name.sql`, applied in order inside a transaction, tracked in a `schema_migrations` table.
 - `jobs/` : in-process queue. The scheduler is pure (`src/shared/jobScheduler.ts`, unit tested with fake runners); `src/main/jobs/` holds the runners. Job types: `importClip` (probe, normalize, thumbnail, filmstrip, media row; concurrency 2) and `render` (concurrency 1; `exportVideo` in `src/main/render/exportVideo.ts`: render, verify and sidecar in `cache/tmp/<jobId>/`, then move into `exports/`, DECISIONS #37). A job in `cancelling` keeps its pool slot until its runner settles. Every state change and progress tick goes to the renderer on one channel, `job:event` (`{ type: 'queued' | 'started' | 'progress' | 'done' | 'failed' | 'cancelled', job: JobInfo }`); `JobInfo.seq` only grows, so a stale `jobs.list()` snapshot never overwrites a newer event. Progress is throttled, state changes never are. `importClip` builds every output in `cache/tmp/<jobId>/`, renames them into place, and inserts the row last; `sweepLibrary(root)` empties `cache/tmp` and stray `.partial` files when a library is opened by the app (never inside `openLibrary()`). See DECISIONS #29.
 - `media/` : `probe.ts`, `normalize.ts`, `thumbs.ts`, `filmstrip.ts`, `binaries.ts` (resolves ffmpeg/ffprobe paths for dev vs packaged, mac vs win).
 - `render/` : wraps `selectComposition` + `renderMedia`. Dev uses a dev bundle; packaged uses the prebuilt bundle directory shipped with the app. Passes `binariesDirectory` and `browserExecutable` explicitly in packaged builds.
+- `log/` : `logger.ts`, a rotating `<userData>/logs/sandwich.log` (2 MB, two backups) fed by a queued async append; only the crash path and quit write synchronously. Rules (rotation, line format, token redaction) are pure in `src/shared/logRotate.ts`. `ipc/log.ts` takes validated, rate-limited entries from the renderer and opens the logs folder (main's own path). `main.ts` mirrors `console.*` into it, logs failed jobs, `render-process-gone` and `did-fail-load`, and ends the app after an `uncaughtException` (DECISIONS #39).
 - `mediaServer.ts` : see section 5.
 
 ### Preload (`src/preload/`)
 Exposes `window.api` with typed functions only. No generic `invoke(channel, ...)` passthrough. Types are shared from `src/shared/api.ts`.
 
 ### Renderer (`src/renderer/`)
-- `features/products`, `features/broll`, `features/captions`, `features/editor`, `features/batch`, `features/history`, `features/settings`
+- `features/products`, `features/broll`, `features/captions`, `features/editor`, `features/batch`, `features/history` (grouped list, `historyStore`, delete dialog), `features/settings` (editor defaults, Troubleshooting)
+- `components/`: `Modal`, `Thumb` (an `<img>` with a fallback tile when the file is gone), `LoadError` (error text with Try again), `ErrorBoundary` (crash screen; flushes the draft autosave first)
 - `store/` : Zustand stores. The editor store holds the current Recipe draft.
 - Uses `@remotion/player` with the same `<SandwichVideo>` component from `remotion/`. `features/preview/`: `PreviewPanel` (Player, safe-zone toggle, memoized inputProps), `PlayerControls` (play/pause, scrubber, loop; listens to the Player's events), `LengthIndicator`, `previewStore` (seek requests by slot or frame).
 
@@ -200,7 +202,10 @@ files.pathsFor(File[]) -> string[]         // preload only (webUtils.getPathForF
 media.importUgc(filePaths[]) -> jobIds     // mp4/mov/m4v, any letter case
 captions.list() -> Caption[] (whole bank, filtered in the renderer) / captions.create(input) / captions.update({ id, patch }) / captions.remove(id) / captions.bulkAdd({ productId, items[] }) -> CaptionResult<...>   // { ok: false, code: invalid | not-found | product-missing }; the renderer parses the paste (validateBulkCaptions) and sends only valid items
 videos.saveDraft(recipe) -> VideoResult<{ id, updatedAt }>   // upsert by recipe.id; drafts only; new drafts need a live product
-videos.list({ status? }) -> Video[] / videos.get(id) -> Video | null / videos.remove(id) -> VideoResult<true>   // remove is drafts-only; summarize rows with shared/drafts.ts
+videos.list({ status? }) -> Video[] / videos.get(id) -> Video | null   // summarize rows with shared/history.ts (summarizeVideo, groupByProduct)
+videos.remove(id, { deleteFile? }) -> VideoResult<{ warning }>   // any status; deleteFile (exported only) moves the mp4 then the sidecar to the Trash, keeps the row if the mp4 fails (DECISIONS #39)
+videos.exportFiles(ids[]) -> Record<id, 'present' | 'missing'>   // one call for the whole History list
+app.openLogsFolder() -> { ok } | { ok: false, message } / log.write({ level, message, stack? }) -> void   // renderer error reports; capped, rate limited, redacted in main
 videos.export(recipe) -> VideoResult<{ jobId }> / videos.reveal(id) -> VideoResult<true>   // saves the draft, queues a render job; reveal resolves the path from the row in main
 platform: string                                                         // process.platform, for "Show in Finder" / "Show in Explorer" wording only
 settings.get() -> EditorSettings / settings.update({ clipDurations?, targetRange? })   // strict: never libraryPath

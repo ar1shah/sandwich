@@ -2,6 +2,11 @@ import "./index.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { useEditorStore } from "./features/editor/editorStore";
+import { installGlobalErrorLogging } from "./log";
+
+installGlobalErrorLogging();
 
 // A file dropped outside a drop zone would make the window open it and replace the app.
 // Drop zones handle their own drop events first.
@@ -17,6 +22,8 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary beforeReport={() => useEditorStore.getState().flush()}>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

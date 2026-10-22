@@ -1,3 +1,4 @@
+import { LoadError } from "./components/LoadError";
 import { useEffect } from "react";
 import { startEditor } from "./features/editor/editorStore";
 import { useNavStore } from "./features/shell/navStore";
@@ -24,8 +25,19 @@ export const App: React.FC = () => {
     return startEditor(() => useNavStore.getState().setPage("new-video"));
   }, [ready]);
 
+  const error = useLibraryStore((s) => s.error);
   if (!state) {
-    return <div className="h-screen bg-app" />;
+    return (
+      <div className="h-screen bg-app p-8 text-app-text">
+        {error && (
+          <LoadError
+            className="max-w-xl"
+            message={`Sandwich could not start: ${error}`}
+            onRetry={() => void load()}
+          />
+        )}
+      </div>
+    );
   }
   if (state.status !== "ready") {
     return <WelcomeScreen state={state} />;

@@ -14,6 +14,8 @@ import { APP_VERSION_CHANNEL, JOB_EVENT_CHANNEL } from "../shared/ipc";
 import { createJobEventThrottle } from "../shared/jobEventThrottle";
 import { DEFAULT_LIBRARY_FOLDER_NAME } from "../shared/library";
 import { registerJobsIpc } from "./ipc/jobs";
+import { registerLogIpc } from "./ipc/log";
+import { createLogger } from "./log/logger";
 import { registerLibraryIpc } from "./ipc/library";
 import { createBrollService } from "./broll/brollService";
 import { createCaptionService } from "./captions/captionService";
@@ -71,6 +73,75 @@ if (app.isPackaged) {
   process.chdir(app.getPath("userData"));
 }
 
+// <userData>/logs/sandwich.log, rotating at 2 MB. Not in the library folder (it may be
+// synced). Headless test runs print to the terminal only and never write a log.
+const logsDir = path.join(app.getPath("userData"), "logs");
+const logger = createLogger({ dir: logsDir });
+
+// Everything the app prints also goes to the log (including the libraries' own messages),
+// without changing what the terminal shows.
+function teeConsoleToLog(): void {
+  const levels = [
+    ["log", "info"],
+    ["info", "info"],
+    ["warn", "warn"],
+    ["error", "error"],
+  ] as const;
+  for (const [method, level] of levels) {
+    const original = console[method].bind(console);
+    console[method] = (...args: unknown[]) => {
+      original(...args);
+      logger.log(
+        level,
+        "main",
+        args
+          .map((arg) =>
+            arg instanceof Error
+              ? (arg.stack ?? arg.message)
+              : typeof arg === "string"
+                ? arg
+                : JSON.stringify(arg),
+          )
+          .join(" "),
+      );
+    };
+  }
+}
+if (!headlessTestMode) {
+  teeConsoleToLog();
+}
+
+// A listener for uncaughtException turns off Electron's own crash behaviour, so the app is
+// ended here on purpose: write the entry to disk first, tell the user once, then exit. A
+// rejected promise nobody handled is logged and the app carries on.
+let crashing = false;
+process.on("uncaughtException", (error) => {
+  if (crashing) {
+    return;
+  }
+  crashing = true;
+  logger.logSync(
+    "error",
+    "main",
+    `Uncaught exception: ${error.stack ?? error}`,
+  );
+  try {
+    dialog.showErrorBox(
+      "Sandwich hit a problem and has to close",
+      "Your drafts are saved. Open Sandwich again to carry on. Settings > Troubleshooting has a button for the log folder if you need to send it.",
+    );
+  } finally {
+    app.exit(1);
+  }
+});
+process.on("unhandledRejection", (reason) => {
+  logger.log(
+    "error",
+    "main",
+    `Unhandled rejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`,
+  );
+});
+
 function assertTrustedSender(event: IpcMainInvokeEvent): void {
   if (!mainWindow || event.sender.id !== mainWindow.webContents.id) {
     throw new Error("Blocked IPC call from an unknown renderer.");
@@ -101,6 +172,25 @@ function createWindow(): void {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    logger.log(
+      "error",
+      "main",
+      `Renderer process gone: ${details.reason} (exit code ${details.exitCode})`,
+    );
+  });
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, code, description, _url, isMainFrame) => {
+      if (isMainFrame) {
+        logger.log(
+          "error",
+          "main",
+          `Window failed to load: ${description} (${code})`,
+        );
+      }
+    },
+  );
   mainWindow.webContents.setWindowOpenHandler(() => {
     return { action: "deny" };
   });
@@ -215,7 +305,16 @@ const jobService = createJobService({
     const repos = libraryManager.getRepos();
     return root && repos ? { root, repos } : null;
   },
-  onEvent: (event) => jobEventThrottle.push(event),
+  onEvent: (event) => {
+    if (event.type === "failed") {
+      logger.log(
+        "error",
+        "jobs",
+        `${event.job.type} job failed (${event.job.label}): ${event.job.error ?? "no message"}`,
+      );
+    }
+    jobEventThrottle.push(event);
+  },
   steps: createFfmpegSteps(getAppFfPaths()),
   exporter: {
     render: async (recipe, { outputPath, signal, onProgress }) => {
@@ -256,6 +355,14 @@ function ensureMediaServer(): Promise<MediaServer> {
   );
   return mediaServerPromise;
 }
+
+registerLogIpc({
+  logger,
+  logsDir,
+  // A wrapper, not shell.openPath itself: a test replaces that function at runtime.
+  openFolder: (dir) => shell.openPath(dir),
+  assertTrustedSender,
+});
 
 registerLibraryIpc({
   manager: libraryManager,
@@ -310,6 +417,8 @@ registerVideosIpc({
     getRoot: () => libraryManager.getRoot(),
     // A wrapper, not shell.showItemInFolder itself: a test replaces that function at runtime.
     reveal: (absolutePath) => shell.showItemInFolder(absolutePath),
+    // Same reason: a test replaces shell.trashItem so it never fills the real Trash.
+    trash: (absolutePath) => shell.trashItem(absolutePath),
   }),
   assertTrustedSender,
 });
@@ -352,6 +461,8 @@ app.on("before-quit", (event) => {
 
 app.on("will-quit", () => {
   jobEventThrottle.dispose();
+  // Entries still queued would otherwise die with the process.
+  logger.flushSync();
   void mediaServer?.close();
   libraryManager.close();
 });

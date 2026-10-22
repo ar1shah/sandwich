@@ -28,6 +28,8 @@ export const BrollSection: React.FC<{
   const jobs = useJobsStore((s) => s.jobs);
   const cancelJob = useJobsStore((s) => s.cancel);
   const input = useRef<HTMLInputElement>(null);
+  // The source file of each import job, so a failed one can be tried again.
+  const sources = useRef(new Map<string, string>());
 
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -82,12 +84,36 @@ export const BrollSection: React.FC<{
       setNotice(skippedText ?? "Choose video files to import.");
       return;
     }
+    await startImport(usable, skippedText);
+  }
+
+  // Queues the files and remembers which job belongs to which file (same order).
+  async function startImport(paths: string[], okNotice: string | null) {
     try {
-      const result = await window.api.broll.import(productId, usable);
-      setNotice(result.ok ? skippedText : result.message);
+      const result = await window.api.broll.import(productId, paths);
+      if (result.ok) {
+        result.value.forEach((jobId, index) => {
+          const source = paths[index];
+          if (source) {
+            sources.current.set(jobId, source);
+          }
+        });
+      }
+      setNotice(result.ok ? okNotice : result.message);
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : String(caught));
     }
+  }
+
+  function retry(jobId: string) {
+    const source = sources.current.get(jobId);
+    if (!source) {
+      return;
+    }
+    setNotice(null);
+    sources.current.delete(jobId);
+    setDismissed((current) => new Set(current).add(jobId));
+    void startImport([source], null);
   }
 
   const showEmpty =
@@ -155,10 +181,20 @@ export const BrollSection: React.FC<{
           {notice}
         </p>
       )}
+      {!entry.loaded && !entry.error && (
+        <p className="mt-3 text-sm text-app-muted">Loading b-roll...</p>
+      )}
       {entry.error && (
-        <p role="alert" className="mt-3 text-sm text-red-400">
-          Could not load b-roll: {entry.error}
-        </p>
+        <div role="alert" className="mt-3 text-sm text-red-400">
+          <p>Could not load b-roll: {entry.error}</p>
+          <button
+            type="button"
+            onClick={() => void load(productId)}
+            className="mt-2 rounded-md border border-edge px-3 py-1.5 text-sm text-app-text hover:bg-white/5"
+          >
+            Try again
+          </button>
+        </div>
       )}
 
       {showEmpty && (
@@ -181,6 +217,9 @@ export const BrollSection: React.FC<{
               onCancel={(jobId) => void cancelJob(jobId)}
               onDismiss={(jobId) =>
                 setDismissed((current) => new Set(current).add(jobId))
+              }
+              onRetry={
+                sources.current.has(placeholder.jobId) ? retry : undefined
               }
             />
           ))}

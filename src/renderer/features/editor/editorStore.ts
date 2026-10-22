@@ -37,7 +37,8 @@ import { useJobsStore } from "../jobs/jobsStore";
 import { useProductsStore } from "../products/productsStore";
 import { useSettingsStore } from "../settings/settingsStore";
 
-export type PendingImport = { jobId: string; name: string };
+// `filePath` is kept so a failed import can be tried again without picking the file again.
+export type PendingImport = { jobId: string; name: string; filePath?: string };
 
 // Where an export stands. `starting` is the moment between the click and the job id: the
 // draft is already locked then, like while `running`.
@@ -82,6 +83,8 @@ export type EditorStore = {
   // Slots whose row or file is gone from the library.
   missing: PerSlot<true>;
   slotError: PerSlot<string>;
+  // The file behind a failed import, by slot, for "Try again".
+  retryPaths: PerSlot<string>;
   notice: string | null;
   saveError: string | null;
   // The draft row exists in the database (the first clip has been saved).
@@ -105,10 +108,15 @@ export type EditorStore = {
   finishExport: () => Promise<void>;
   // finishExport, then a fresh draft for the same product.
   newVideoSameProduct: () => Promise<void>;
+  // Asks main whether each filled slot's clip is still in the library and updates `missing`.
+  // Quietly does nothing when it cannot ask.
+  recheckMissing: () => Promise<void>;
   // Opens the draft that was open when the app last closed. true = restored.
   hydrate: () => Promise<boolean>;
   selectSlot: (slot: Slot | null) => void;
   importToSlot: (slot: Slot, files: File[]) => Promise<void>;
+  // Tries a failed import again with the same file. Nothing happens without a failed file.
+  retryImport: (slot: Slot) => Promise<void>;
   // A job reached a terminal state; applies it if it belongs to a pending slot import.
   handleJob: (job: JobInfo) => Promise<void>;
   setBroll: (media: Media) => void;
@@ -145,6 +153,7 @@ const EMPTY = {
   pending: {},
   missing: {},
   slotError: {},
+  retryPaths: {},
   notice: null,
   saveError: null,
   persisted: false,
@@ -207,11 +216,47 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     return SLOTS.find((slot) => pending[slot]?.jobId === jobId) ?? null;
   }
 
-  function failSlot(slot: Slot, message: string): void {
+  function failSlot(slot: Slot, message: string, filePath?: string): void {
     set({
       pending: withoutKey(get().pending, slot),
       slotError: { ...get().slotError, [slot]: message },
+      retryPaths: filePath
+        ? { ...get().retryPaths, [slot]: filePath }
+        : withoutKey(get().retryPaths, slot),
     });
+  }
+
+  // Starts the import job for one file and follows it into the slot.
+  async function importPath(slot: Slot, filePath: string): Promise<void> {
+    const draft = get().draft;
+    if (!draft) {
+      return;
+    }
+    // A newer drop replaces an import still running for this slot.
+    const previous = get().pending[slot];
+    if (previous) {
+      cancelJob(previous.jobId);
+    }
+    const epoch = get().epoch;
+    try {
+      const [jobId] = await window.api.media.importUgc([filePath]);
+      if (get().epoch !== epoch || get().draft?.id !== draft.id) {
+        // The draft was closed or the library switched while we waited.
+        cancelJob(jobId);
+        return;
+      }
+      const name = filePath.split(/[\\/]/).pop() ?? filePath;
+      set({
+        pending: { ...get().pending, [slot]: { jobId, name, filePath } },
+      });
+      // The job may have finished before we knew its id.
+      const job = useJobsStore.getState().jobs[jobId];
+      if (job && isTerminalJobState(job.state)) {
+        await get().handleJob(job);
+      }
+    } catch (error) {
+      failSlot(slot, messageOf(error), filePath);
+    }
   }
 
   // Queues a save of `recipe`. Dropped when a library switch happened since it was queued
@@ -281,6 +326,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       slotMedia: { ...get().slotMedia, [slot]: media },
       missing: withoutKey(get().missing, slot),
       slotError: withoutKey(get().slotError, slot),
+      retryPaths: withoutKey(get().retryPaths, slot),
     });
     commit(next);
   }
@@ -347,7 +393,13 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         await get().closeDraft();
       }
       const epoch = get().epoch;
-      const settings = await useSettingsStore.getState().load();
+      let settings;
+      try {
+        settings = await useSettingsStore.getState().load();
+      } catch (error) {
+        set({ notice: `Could not start a new video: ${messageOf(error)}` });
+        return;
+      }
       if (get().epoch !== epoch || get().draft) {
         return;
       }
@@ -369,6 +421,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         return { ok: false, message: EXPORT_BUSY_MESSAGE };
       }
       if (get().draft?.id === id) {
+        // Already open: still look for clips deleted while it sat in the background.
+        await get().recheckMissing();
         return { ok: true };
       }
       const epoch = get().epoch;
@@ -479,7 +533,57 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       }
     },
 
+    async recheckMissing() {
+      const draft = get().draft;
+      if (!draft || get().switching || isExportBusy(get().exportState)) {
+        return;
+      }
+      const paths = draft.clips
+        .map((clip) => clip.mediaPath)
+        .filter((p) => p !== "");
+      if (paths.length === 0) {
+        return;
+      }
+      const epoch = get().epoch;
+      try {
+        const checks = await window.api.media.byPaths(paths);
+        const latest = get().draft;
+        if (get().epoch !== epoch || !latest || latest.id !== draft.id) {
+          return;
+        }
+        const missing: PerSlot<true> = {};
+        for (const clip of latest.clips) {
+          if (clip.mediaPath === "") {
+            continue;
+          }
+          const check = checks.find((c) => c.path === clip.mediaPath);
+          // A clip that arrived after the question was asked has no answer: keep what we
+          // knew about its slot.
+          if (check ? !isUsableMedia(check) : get().missing[clip.slot]) {
+            missing[clip.slot] = true;
+          }
+        }
+        const same = SLOTS.every(
+          (slot) => (missing[slot] === true) === (get().missing[slot] === true),
+        );
+        if (!same) {
+          set({ missing });
+        }
+      } catch {
+        // Not knowing is not a reason to bother the user; the export check in main decides.
+      }
+    },
+
     async exportVideo() {
+      if (!get().draft || !get().product || get().switching) {
+        return;
+      }
+      if (get().exportState.kind !== "idle") {
+        return;
+      }
+      // A clip deleted since the draft was opened turns its slot to "missing" now, instead
+      // of failing the render.
+      await get().recheckMissing();
       const { draft, product, pending, missing } = get();
       if (!draft || !product || get().switching) {
         return;
@@ -573,6 +677,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       set({
         notice: files.length > 1 ? "Only the first clip was used." : null,
         slotError: withoutKey(get().slotError, slot),
+        retryPaths: withoutKey(get().retryPaths, slot),
       });
       const [filePath] = window.api.files.pathsFor([files[0]]);
       if (!filePath) {
@@ -583,29 +688,25 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         failSlot(slot, "Choose an .mp4, .mov or .m4v video.");
         return;
       }
-      // A newer drop replaces an import still running for this slot.
-      const previous = get().pending[slot];
-      if (previous) {
-        cancelJob(previous.jobId);
+      await importPath(slot, filePath);
+    },
+
+    async retryImport(slot) {
+      const filePath = get().retryPaths[slot];
+      if (
+        !filePath ||
+        !get().draft ||
+        get().switching ||
+        editsLocked() ||
+        get().pending[slot]
+      ) {
+        return;
       }
-      const epoch = get().epoch;
-      try {
-        const [jobId] = await window.api.media.importUgc([filePath]);
-        if (get().epoch !== epoch || get().draft?.id !== draft.id) {
-          // The draft was closed or the library switched while we waited.
-          cancelJob(jobId);
-          return;
-        }
-        const name = filePath.split(/[\\/]/).pop() ?? filePath;
-        set({ pending: { ...get().pending, [slot]: { jobId, name } } });
-        // The job may have finished before we knew its id.
-        const job = useJobsStore.getState().jobs[jobId];
-        if (job && isTerminalJobState(job.state)) {
-          await get().handleJob(job);
-        }
-      } catch (error) {
-        failSlot(slot, messageOf(error));
-      }
+      set({
+        slotError: withoutKey(get().slotError, slot),
+        retryPaths: withoutKey(get().retryPaths, slot),
+      });
+      await importPath(slot, filePath);
     },
 
     async handleJob(job) {
@@ -627,7 +728,11 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         return;
       }
       if (job.state === "failed") {
-        failSlot(slot, job.error ?? "Import failed.");
+        failSlot(
+          slot,
+          job.error ?? "Import failed.",
+          get().pending[slot]?.filePath,
+        );
         return;
       }
       // done: fetch the row, then apply only if nothing changed in the meantime.
@@ -644,14 +749,18 @@ export const useEditorStore = create<EditorStore>((set, get) => {
           return;
         }
         if (!media) {
-          failSlot(slot, "The imported clip could not be found.");
+          failSlot(
+            slot,
+            "The imported clip could not be found.",
+            get().pending[slot]?.filePath,
+          );
           return;
         }
         applyMedia(slot, media);
         set({ pending: withoutKey(get().pending, slot) });
       } catch (error) {
         if (get().pending[slot]?.jobId === job.id) {
-          failSlot(slot, messageOf(error));
+          failSlot(slot, messageOf(error), get().pending[slot]?.filePath);
         }
       } finally {
         handling.delete(job.id);
@@ -781,6 +890,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         slotMedia: withoutKey(get().slotMedia, slot),
         missing: withoutKey(get().missing, slot),
         slotError: withoutKey(get().slotError, slot),
+        retryPaths: withoutKey(get().retryPaths, slot),
       });
       commit(clearClip(draft, slot, clipDurations, new Date()));
     },
@@ -831,6 +941,9 @@ export function startEditor(onRestored?: () => void): () => void {
   // finished by then is lost (DECISIONS #33). Completed actions are already saved.
   const onPageHide = () => void useEditorStore.getState().flush();
   window.addEventListener("pagehide", onPageHide);
+  // Coming back to the window is when a file deleted in Finder is noticed.
+  const onFocus = () => void useEditorStore.getState().recheckMissing();
+  window.addEventListener("focus", onFocus);
   void useEditorStore
     .getState()
     .hydrate()
@@ -842,5 +955,6 @@ export function startEditor(onRestored?: () => void): () => void {
   return () => {
     unsubscribe();
     window.removeEventListener("pagehide", onPageHide);
+    window.removeEventListener("focus", onFocus);
   };
 }

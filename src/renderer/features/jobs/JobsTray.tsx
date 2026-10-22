@@ -56,7 +56,10 @@ const ActiveRow: React.FC<{ job: JobInfo; onCancel: () => void }> = ({
   );
 };
 
-const FinishedRow: React.FC<{ job: JobInfo }> = ({ job }) => {
+const FinishedRow: React.FC<{ job: JobInfo; onDismiss: () => void }> = ({
+  job,
+  onDismiss,
+}) => {
   const failed = job.state === "failed";
   return (
     <li className="px-3 py-1 text-[11px]">
@@ -64,8 +67,20 @@ const FinishedRow: React.FC<{ job: JobInfo }> = ({ job }) => {
         <span className="truncate text-app-muted" title={job.label}>
           {job.label}
         </span>
-        <span className={failed ? "text-red-400" : "text-app-dim"}>
-          {failed ? "Failed" : "Done"}
+        <span className="flex shrink-0 items-center gap-2">
+          <span className={failed ? "text-red-400" : "text-app-dim"}>
+            {failed ? "Failed" : "Done"}
+          </span>
+          {failed && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label={`Dismiss ${job.label}`}
+              className="text-app-muted hover:text-app-text"
+            >
+              Dismiss
+            </button>
+          )}
         </span>
       </div>
       {failed && job.error && (
@@ -82,6 +97,8 @@ const FinishedRow: React.FC<{ job: JobInfo }> = ({ job }) => {
 
 export const JobsTray: React.FC = () => {
   const jobs = useJobsStore((state) => state.jobs);
+  const dismissed = useJobsStore((state) => state.dismissed);
+  const dismiss = useJobsStore((state) => state.dismiss);
   const start = useJobsStore((state) => state.start);
   const cancel = useJobsStore((state) => state.cancel);
   const importFixtures = useJobsStore((state) => state.importFixtures);
@@ -89,7 +106,10 @@ export const JobsTray: React.FC = () => {
   useEffect(() => start(), [start]);
 
   const active = useMemo(() => selectActive(jobs), [jobs]);
-  const finished = useMemo(() => selectFinished(jobs), [jobs]);
+  const finished = useMemo(
+    () => selectFinished(jobs, dismissed),
+    [jobs, dismissed],
+  );
   // Temporary 2.2 test button; Vite strips it from production builds.
   const showDevButton = import.meta.env.DEV;
 
@@ -124,7 +144,11 @@ export const JobsTray: React.FC = () => {
       {finished.length > 0 && (
         <ul className="mt-2 flex flex-col">
           {finished.map((job) => (
-            <FinishedRow key={job.id} job={job} />
+            <FinishedRow
+              key={job.id}
+              job={job}
+              onDismiss={() => dismiss(job.id)}
+            />
           ))}
         </ul>
       )}
