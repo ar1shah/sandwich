@@ -1,42 +1,53 @@
 # Sandwich
 
-Auto-editor for TikTok Shop UGC videos: before clip → after clip → product b-roll, with trims, zoom, a caption bank, and batch mode.
+An auto-editor for TikTok Shop UGC videos. You drop in a before clip, an after clip, and some product b-roll, and it stitches them together with trims, zooms, and captions. There's also a batch mode so you can crank out a bunch at once.
 
-This repo starts as a **starter kit** for building the app with Claude Code. No app code yet; Claude Code writes it step by step.
+The name comes from the format: before and after on the outside, product in the middle. (Kind of.)
 
-## What's in here
+## Status
 
-| File | What it's for |
-|---|---|
-| `docs/ROADMAP.md` | Phases, exit tests, how to split work between two people, risks |
-| `docs/CHECKLIST.md` | Progress tracker (Claude ticks steps only when checks pass) |
-| `docs/BUILD_PROMPTS.md` | Copy-paste prompts for every build step, each with checks |
-| `CLAUDE.md` | Project brief Claude Code reads automatically every session: stack, golden rules, output spec, how to work |
-| `docs/reference/` | Background docs Claude reads while building. You rarely need to open these. |
-| `docs/reference/SPEC.md` | What the app does: features, flows, recipe format, naming, caption tokens |
-| `docs/reference/ARCHITECTURE.md` | How it's built: processes, DB schema, media server, normalization, render pipeline, testing |
-| `docs/reference/DECISIONS.md` | Log of big decisions and why |
-| `.claude/skills/` | Project skills you run as slash commands: `/next-step`, `/verify-step 1.2`, `/review` |
+Early. There's no app code yet. Right now the repo is mostly planning docs and setup for building it with Claude Code. The code is coming step by step.
 
-## One-time setup (both of you)
+## Repo layout
 
-1. Install Node LTS, Git, and the GitHub CLI (`brew install node git gh` if you use Homebrew).
-2. Install Claude Code and log in (see the Claude Code docs for the current install command).
-3. One person creates a GitHub repo, copies this kit into it, commits, and pushes. Add the other as a collaborator.
-4. Both clone the repo and run `claude` in the repo folder.
+```
+CLAUDE.md                  project brief Claude Code reads every session
+docs/
+  ROADMAP.md               phases, what "done" means for each, who's doing what
+  CHECKLIST.md             progress tracker
+  BUILD_PROMPTS.md         the prompt for each build step
+  reference/
+    SPEC.md                features, flows, recipe format, caption tokens
+    ARCHITECTURE.md        DB schema, media server, render pipeline, testing
+    DECISIONS.md           why we picked what we picked
+.claude/skills/            /next-step, /verify-step, /review
+```
 
-## How to build
+## Setup
 
-1. In Claude Code, run `/next-step` (or paste Step 0.1 from `docs/BUILD_PROMPTS.md`).
-2. Review the plan it proposes. Approve or push back.
-3. Let it build and run the checks. Do the "Your checks" yourself.
-4. Commit, then `/clear` and do the next step.
+You'll need Node (LTS), Git, the GitHub CLI, and Claude Code.
 
-Do Phase 0 together on one machine; Step 0.4 decides whether the whole render approach works. After Step 1.1, split work using the table in `docs/ROADMAP.md`.
+```bash
+brew install node git gh
+git clone https://github.com/ar1shah/sandwich.git
+cd sandwich
+claude
+```
 
-## Rules of thumb
+## How we're building it
 
-- One step per session. Fresh context beats a long messy one.
-- Never skip the human checks on video steps. Video bugs are visual.
-- If Claude says "this should work," ask it to prove it with a check.
-- Keep `CLAUDE.md` short and accurate. Update it when commands or rules change.
+Each step in `docs/BUILD_PROMPTS.md` is one Claude Code session:
+
+1. Run `/next-step`
+2. Read the plan, approve it or push back
+3. Let it build and run its checks, then do the manual checks yourself
+4. Commit, `/clear`, move on
+
+Phase 0 we're doing together, since Step 0.4 is where we find out if the render approach actually works. After Step 1.1 we split up the work (see `docs/ROADMAP.md`).
+
+A few things we've learned the hard way:
+
+- One step per session. Long sessions get messy.
+- Always eyeball the video output. Video bugs are visual and tests won't catch all of them.
+- "This should work" isn't proof. Make it run a check.
+- Keep `CLAUDE.md` short and up to date.
