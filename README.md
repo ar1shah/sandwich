@@ -1,3 +1,5 @@
+<div align="center">
+
 # Sandwich
 
 An auto-editor for TikTok Shop UGC videos. You drop in a before clip, an after clip, and some product b-roll, and it stitches them together with trims, zooms, and captions. There's also a batch mode so you can crank out a bunch at once.
