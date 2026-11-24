@@ -28,7 +28,8 @@
     "probe": "tsx scripts/probe.ts",
     "normalize": "tsx scripts/normalize.ts",
     "test:normalize": "tsx scripts/test-normalize.ts",
-    "test:import": "tsx scripts/test-import.ts"
+    "test:import": "tsx scripts/test-import.ts",
+    "readme:media": "tsx scripts/capture-readme-media.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.535",

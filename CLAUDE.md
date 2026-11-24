@@ -99,6 +99,7 @@ npm run render -- <recipe.json> <out.mp4> [--media-root <dir>]  # render a recip
 npm run render:sample  # render fixtures/sample.recipe.json to out/sample.mp4
 npm run verify:render -- <file.mp4> [expectedSeconds] [--recipe <recipe.json>]  # spec, Rec.709 tags, faststart; with --recipe also per-clip audio and a colour fidelity check. Exits 1 on failure
 npm run make           # package the app (currently electron-forge package)
+npm run readme:media    # regenerate README screenshots from the packaged app (run npm run make first)
 ```
 
 ## How to work in this repo
