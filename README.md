@@ -234,4 +234,4 @@ npm run dev
 
 Sandwich is a desktop app, so there is no live demo. It is in development, and the screenshots above are the best look at it.
 
-Ari Shah · [Portfolio](https://www.ar13.dev/) · [LinkedIn](https://linkedin.com/in/arishah)
+Ari Shah · [Portfolio](https://www.ar13.dev/)
